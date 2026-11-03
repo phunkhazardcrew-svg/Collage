@@ -186,6 +186,9 @@
   .ed-foot { display: flex; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--border); }
   .ed-foot button { flex: 1; margin: 0; }
   .angle-row { display: flex; gap: 8px; align-items: center; }
+  .spacing { margin-bottom: 12px; }
+  .spacing summary { cursor: pointer; font-size: .85rem; color: var(--muted); padding: 4px 0; }
+  .spacing[open] summary { margin-bottom: 8px; }
   .angle-row input { flex: 1; }
 </style>
 </head>
@@ -248,6 +251,8 @@
         </div>
       </div>
 
+      <details id="spacing" class="spacing">
+      <summary>Abstand &amp; Rand (optional, Standard: aus)</summary>
       <div class="field" id="gapField">
         <label for="gap">Abstand zwischen Bildern: <span id="gapVal">0</span> px</label>
         <input id="gap" type="range" min="0" max="200" value="0">
@@ -256,6 +261,7 @@
         <label for="margin">Rand außen: <span id="marginVal">0</span> px</label>
         <input id="margin" type="range" min="0" max="300" value="0">
       </div>
+      </details>
       <div class="field">
         <span class="label">Hintergrund</span>
         <div class="row">
@@ -377,6 +383,15 @@
         </div>
       </div>
       <div class="field">
+        <label for="edScale">Größe in der Collage: <span id="edScaleVal">100</span> %</label>
+        <div class="angle-row">
+          <button type="button" class="icon-btn" id="edScaleMinus" aria-label="Kleiner">−</button>
+          <input id="edScale" type="range" min="10" max="400" step="1" value="100">
+          <button type="button" class="icon-btn" id="edScalePlus" aria-label="Größer">+</button>
+          <button type="button" class="icon-btn" id="edScale1" title="Originalgröße">100 %</button>
+        </div>
+      </div>
+      <div class="field">
         <span class="label">Ausschnitt</span>
         <div class="seg" id="edAspect">
           <button type="button" data-a="none" aria-pressed="true">Ganzes Foto</button>
@@ -472,7 +487,8 @@
     editor: $('editor'), edName: $('edName'), edStageWrap: $('edStageWrap'), edStage: $('edStage'),
     edRotL: $('edRotL'), edRotR: $('edRotR'), edFlipH: $('edFlipH'), edFlipV: $('edFlipV'),
     edAngle: $('edAngle'), edAngleVal: $('edAngleVal'), edAngleMinus: $('edAngleMinus'), edAnglePlus: $('edAnglePlus'),
-    edAngle0: $('edAngle0'), edAspect: $('edAspect'), edResult: $('edResult'), edInfo: $('edInfo'),
+    edAngle0: $('edAngle0'), edScale: $('edScale'), edScaleVal: $('edScaleVal'), edScaleMinus: $('edScaleMinus'),
+    edScalePlus: $('edScalePlus'), edScale1: $('edScale1'), edAspect: $('edAspect'), edResult: $('edResult'), edInfo: $('edInfo'),
     edReset: $('edReset'), edCancel: $('edCancel'), edApply: $('edApply'),
   };
   const coarse = matchMedia('(pointer: coarse)').matches;
@@ -487,8 +503,7 @@
       if (Number.isInteger(s.perGroup) && s.perGroup >= 1 && s.perGroup <= 20) state.perGroup = s.perGroup;
       if (typeof s.equalize === 'boolean') state.equalize = s.equalize;
       if (['start', 'center', 'end'].includes(s.align)) state.align = s.align;
-      if (Number.isFinite(s.gap) && s.gap >= 0 && s.gap <= 200) state.gap = s.gap;
-      if (Number.isFinite(s.margin) && s.margin >= 0 && s.margin <= 300) state.margin = s.margin;
+      // Abstand und Rand werden bewusst NICHT übernommen: jeder Start beginnt ohne Abstand und ohne Rand.
       if (typeof s.bg === 'string' && /^#[0-9a-f]{6}$/i.test(s.bg)) state.bg = s.bg;
       if (typeof s.transparent === 'boolean') state.transparent = s.transparent;
       if ([0, 8000, 4000, 2048, 1080].includes(s.maxSize)) state.maxSize = s.maxSize;
@@ -516,10 +531,12 @@
 
   // ---------- Bearbeitung / Geometrie ----------
 
-  const newEdit = () => ({ rot: 0, angle: 0, flipH: false, flipV: false, crop: { u0: 0, v0: 0, u1: 1, v1: 1 } });
+  // scale = Größe dieses Fotos in der Collage (1 = Originalpixel), unabhängig von den anderen Fotos.
+  const newEdit = () => ({ rot: 0, angle: 0, flipH: false, flipV: false, scale: 1, crop: { u0: 0, v0: 0, u1: 1, v1: 1 } });
   const cloneEdit = (e) => ({ ...e, crop: { ...e.crop } });
   const isCropped = (c) => c.u0 > 0 || c.v0 > 0 || c.u1 < 1 || c.v1 < 1;
-  const isEdited = (e) => !!(e.rot || e.angle || e.flipH || e.flipV || isCropped(e.crop));
+  const scaleOf = (e) => e.scale ?? 1;
+  const isEdited = (e) => !!(e.rot || e.angle || e.flipH || e.flipV || scaleOf(e) !== 1 || isCropped(e.crop));
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
   /** Ausschnitt (im gedrehten/gespiegelten Foto) → ganzzahliges Rechteck im Originalfoto. */
@@ -551,6 +568,12 @@
     if (!e.angle) return { w: cw, h: ch };
     const t = Math.abs(e.angle) * Math.PI / 180, cos = Math.cos(t), sin = Math.sin(t);
     return { w: cw * cos + ch * sin, h: cw * sin + ch * cos };
+  }
+
+  /** Größe in der Collage = Endgröße × eigene Skalierung des Fotos. */
+  function sdims(it, e = it.edit) {
+    const d = dims(it, e), sc = scaleOf(e);
+    return { w: d.w * sc, h: d.h * sc };
   }
 
   /**
@@ -707,8 +730,9 @@
       name.title = it.name;
       const dim = document.createElement('div');
       dim.className = 'dim';
-      const d = dims(it);
-      dim.textContent = `${Math.round(d.w)} × ${Math.round(d.h)} px`;
+      const d = sdims(it);
+      dim.textContent = `${Math.round(d.w)} × ${Math.round(d.h)} px` +
+        (scaleOf(it.edit) !== 1 ? ` · ${Math.round(scaleOf(it.edit) * 100)} %` : '');
       if (isEdited(it.edit)) {
         const tag = document.createElement('span');
         tag.className = 'edited';
@@ -783,7 +807,7 @@
   function computeLayout(list) {
     if (state.layout === 'free') return computeFreeLayout(list);
     const swap = state.layout === 'v' || state.layout === 'cols';
-    const sized = new Map(list.map((it) => [it, dims(it)]));
+    const sized = new Map(list.map((it) => [it, sdims(it)]));
     const A = (it) => (swap ? sized.get(it).h : sized.get(it).w); // entlang Hauptachse
     const B = (it) => (swap ? sized.get(it).w : sized.get(it).h); // entlang Querachse
     const gap = state.gap;
@@ -829,8 +853,8 @@
 
   /** Größe (w,h) und achsparallele Hülle (bw,bh) eines Fotos im freien Modus. */
   function freeBox(it) {
-    const d = dims(it), f = it.free;
-    const w = d.w * f.s, h = d.h * f.s;
+    const d = sdims(it), f = it.free;
+    const w = d.w, h = d.h;
     const t = f.a * Math.PI / 180, c = Math.abs(Math.cos(t)), si = Math.abs(Math.sin(t));
     return { w, h, bw: w * c + h * si, bh: w * si + h * c };
   }
@@ -849,10 +873,10 @@
     }
     const any = maxX > -Infinity;
     let x = any ? maxX + state.gap : 0;
-    const cy = any ? (minY + maxY) / 2 : Math.max(...missing.map((i) => dims(i).h)) / 2;
+    const cy = any ? (minY + maxY) / 2 : Math.max(...missing.map((i) => sdims(i).h)) / 2;
     for (const it of missing) {
-      const d = dims(it);
-      it.free = { cx: x + d.w / 2, cy, s: 1, a: 0 };
+      const d = sdims(it);
+      it.free = { cx: x + d.w / 2, cy, a: 0 };
       x += d.w + state.gap;
     }
   }
@@ -864,7 +888,8 @@
     const L = computeLayout(images);
     state.layout = saved;
     for (const r of L.rects) {
-      r.item.free = { cx: r.x + r.w / 2, cy: r.y + r.h / 2, s: r.w / dims(r.item).w, a: 0 };
+      r.item.edit = { ...r.item.edit, crop: { ...r.item.edit.crop }, scale: r.w / dims(r.item).w };
+      r.item.free = { cx: r.x + r.w / 2, cy: r.y + r.h / 2, a: 0 };
     }
   }
 
@@ -1200,7 +1225,7 @@
     els.freeTools.classList.toggle('hidden', !show);
     if (!show) return;
     els.ftName.textContent = `${images.indexOf(it) + 1}. ${it.name}`;
-    els.ftSVal.textContent = `${(it.free.s * 100).toFixed(1).replace('.', ',')} %`;
+    els.ftSVal.textContent = `${(scaleOf(it.edit) * 100).toFixed(1).replace('.', ',')} %`;
     els.ftAVal.textContent = `${it.free.a.toFixed(1).replace('.', ',')}°`;
     els.ftGhost.checked = ghost;
   }
@@ -1275,6 +1300,10 @@
     return { x: e.clientX - r.left, y: e.clientY - r.top };
   };
   const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y) || 1;
+  const hitVp = (q) => {
+    const r = els.viewport.getBoundingClientRect();
+    return hitIndex(q.x + r.left, q.y + r.top);
+  };
   const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
 
   els.viewport.addEventListener('pointerdown', (e) => {
@@ -1288,13 +1317,24 @@
     if (ptrs.size === 2) {
       if (gest) clearTimeout(gest.lp);
       hideMarks();
+      if (gest && gest.type === 'fhandle') return;
       const [a, b] = [...ptrs.values()];
-      if (gest && (gest.type === 'fpending' || gest.type === 'fmove')) {
-        // Zweiter Finger auf ausgewähltem Foto: Foto drehen + zoomen + verschieben
-        gest = { type: 'ftransform', it: gest.it, d0: dist(a, b), ang0: angleOf(a, b), m0: mid(a, b), f0: { ...gest.it.free } };
+      const ha = hitVp(a), hb = hitVp(b);
+      // Erster Finger hatte evtl. schon ein Foto ein Stück verschoben – zurücksetzen.
+      if (gest && gest.f0 && gest.it && (gest.type === 'fpending' || gest.type === 'fmove')) gest.it.free = { ...gest.f0 };
+      if (ha >= 0 && ha === hb) {
+        // Beide Finger auf DEMSELBEN Foto: nur dieses Foto größer/kleiner (und ggf. drehen)
+        const it = images[ha];
+        if (free) select(it.id);
+        if (!view.lock) startLock();
+        gest = {
+          type: 'ptransform', it, d0: dist(a, b), ang0: angleOf(a, b), m0: mid(a, b), sc0: scaleOf(it.edit),
+          a0: free ? it.free.a : it.edit.angle, f0: free ? { ...it.free } : null, rot: false,
+        };
         return;
       }
-      if (gest && gest.type === 'fhandle') return;
+      // Finger auf verschiedenen Fotos / daneben: Ansicht zoomen
+      view.lock = null;
       gest = { type: 'pinch', d: dist(a, b), m: mid(a, b) };
       return;
     }
@@ -1306,7 +1346,7 @@
       if (e.target.closest('.sel-handle') && it) {
         startLock();
         const c = freeToVp(it.free.cx, it.free.cy);
-        gest = { type: 'fhandle', id: e.pointerId, it, c, d0: dist(p, c), ang0: angleOf(c, p), f0: { ...it.free } };
+        gest = { type: 'fhandle', id: e.pointerId, it, c, d0: dist(p, c), ang0: angleOf(c, p), f0: { ...it.free }, sc0: scaleOf(it.edit) };
         return;
       }
       if (hit >= 0) {
@@ -1351,21 +1391,33 @@
       g.d = d; g.m = m;
       return;
     }
-    if (g.type === 'ftransform') {
+    if (g.type === 'ptransform') {
       if (ptrs.size < 2) return;
       const [a, b] = [...ptrs.values()];
-      const f = g.it.free, m = mid(a, b), k = unitK();
-      f.s = clamp(g.f0.s * dist(a, b) / g.d0, 0.02, 20);
-      f.a = normAngle(g.f0.a + normAngle(angleOf(a, b) - g.ang0));
-      f.cx = g.f0.cx + (m.x - g.m0.x) / k;
-      f.cy = g.f0.cy + (m.y - g.m0.y) / k;
+      const it = g.it, m = mid(a, b);
+      it.edit.scale = clamp(g.sc0 * dist(a, b) / g.d0, 0.05, 10);
+      // Drehen erst ab 10° Fingerdrehung, damit reines Vergrößern nichts verdreht.
+      const ang = angleOf(a, b);
+      if (!g.rot && Math.abs(normAngle(ang - g.ang0)) > 10) { g.rot = true; g.ang0 = ang; }
+      if (g.rot) {
+        let na = normAngle(g.a0 + normAngle(ang - g.ang0));
+        const snap = Math.round(na / 90) * 90;
+        if (Math.abs(na - snap) < 2) na = normAngle(snap); // an 0°/90° einrasten
+        if (g.f0) it.free.a = na;
+        else it.edit.angle = clamp(Math.round(na * 10) / 10, -45, 45);
+      }
+      if (g.f0) {
+        const k = unitK();
+        it.free.cx = g.f0.cx + (m.x - g.m0.x) / k;
+        it.free.cy = g.f0.cy + (m.y - g.m0.y) / k;
+      }
       render();
       return;
     }
     if (e.pointerId !== g.id) return;
     if (g.type === 'fhandle') {
       const f = g.it.free;
-      f.s = clamp(g.f0.s * dist(p, g.c) / g.d0, 0.02, 20);
+      g.it.edit.scale = clamp(g.sc0 * dist(p, g.c) / g.d0, 0.05, 10);
       let a = normAngle(g.f0.a + normAngle(angleOf(g.c, p) - g.ang0));
       const snap = Math.round(a / 90) * 90;
       if (!e.shiftKey && Math.abs(a - snap) < 2) a = normAngle(snap); // an 0°/90°/180° einrasten
@@ -1423,15 +1475,15 @@
       scheduleHiRes();
       return;
     }
-    if (g.type === 'ftransform') {
-      if (ptrs.size === 0) { gest = null; endLock(); commit(); }
+    if (g.type === 'ptransform') {
+      if (ptrs.size === 0) { gest = null; endLock(); renderThumbs(); commit(); }
       return;
     }
     if (e.pointerId !== g.id) return;
     if (g.type === 'fhandle' || g.type === 'fmove' || g.type === 'fpending') {
       gest = null;
       endLock();
-      if (g.type !== 'fpending') commit();
+      if (g.type !== 'fpending') { if (g.type === 'fhandle') renderThumbs(); commit(); }
       else if (e.type === 'pointerup') handleTap(g, false);
       return;
     }
@@ -1527,10 +1579,10 @@
     for (const b of els.alignSeg.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === state.align));
     els.gestureHint.textContent = free
       ? (coarse
-        ? 'Foto antippen = auswählen · ziehen = verschieben · 2 Finger auf dem Foto = drehen & zoomen · 2 Finger daneben = Ansicht zoomen'
+        ? 'Foto antippen = auswählen · ziehen = verschieben · 2 Finger auf EINEM Foto = nur dieses größer/kleiner & drehen · Doppeltipp / +/− = Ansicht zoomen'
         : 'Foto anklicken = auswählen · ziehen = verschieben · Griff ◢ = drehen & skalieren (Umschalt = frei) · Pfeiltasten = 1 px · Mausrad = Ansicht zoomen')
       : coarse
-      ? 'Antippen = Foto bearbeiten · Doppeltipp / zwei Finger = zoomen · gedrückt halten & ziehen = Fotos tauschen'
+      ? 'Zwei Finger auf EINEM Foto = nur dieses Foto größer/kleiner · Antippen = bearbeiten · Doppeltipp / +/− = Ansicht zoomen · gedrückt halten & ziehen = tauschen'
       : 'Klick = Foto bearbeiten · Doppelklick / Mausrad = zoomen · Ziehen = Fotos tauschen (gezoomt: verschieben)';
   }
 
@@ -1568,6 +1620,8 @@
   function syncEditorUI() {
     els.edAngle.value = String(ed.e.angle);
     els.edAngleVal.textContent = ed.e.angle.toFixed(1).replace('.', ',');
+    els.edScale.value = String(Math.round(scaleOf(ed.e) * 100));
+    els.edScaleVal.textContent = String(Math.round(scaleOf(ed.e) * 100));
     for (const b of els.edAspect.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.a === ed.aspect));
   }
 
@@ -1647,7 +1701,7 @@
     const S = Math.round(72 * dpr);
     c.width = S; c.height = S;
     const ctx = c.getContext('2d');
-    const d = dims(ed.it, ed.e);
+    const d = dims(ed.it, ed.e), sd = sdims(ed.it, ed.e);
     const s = Math.min(S / d.w, S / d.h);
     const w = d.w * s, h = d.h * s, x0 = (S - w) / 2, y0 = (S - h) / 2;
     ctx.imageSmoothingQuality = 'high';
@@ -1659,7 +1713,8 @@
     if (ed.e.rot) parts.push(`${ed.e.rot * 90}°`);
     if (ed.e.flipH || ed.e.flipV) parts.push('gespiegelt');
     if (ed.e.angle) parts.push(`begradigt ${ed.e.angle.toFixed(1).replace('.', ',')}°`);
-    els.edInfo.textContent = `Ergebnis: ${Math.round(d.w)} × ${Math.round(d.h)} px` +
+    if (scaleOf(ed.e) !== 1) parts.push(`Größe ${Math.round(scaleOf(ed.e) * 100)} %`);
+    els.edInfo.textContent = `Ergebnis: ${Math.round(sd.w)} × ${Math.round(sd.h)} px` +
       (parts.length ? ' · ' + parts.join(', ') : ' · unverändert (Originalpixel)');
   }
 
@@ -1834,6 +1889,11 @@
   els.edAngleMinus.addEventListener('click', () => setAngle(ed.e.angle - 0.1));
   els.edAnglePlus.addEventListener('click', () => setAngle(ed.e.angle + 0.1));
   els.edAngle0.addEventListener('click', () => setAngle(0));
+  const setScale = (v) => { ed.e.scale = clamp(Math.round(v) / 100, 0.05, 10); syncEditorUI(); drawEditor(); };
+  els.edScale.addEventListener('input', () => setScale(+els.edScale.value));
+  els.edScaleMinus.addEventListener('click', () => setScale(scaleOf(ed.e) * 100 - 1));
+  els.edScalePlus.addEventListener('click', () => setScale(scaleOf(ed.e) * 100 + 1));
+  els.edScale1.addEventListener('click', () => setScale(100));
   els.edAspect.addEventListener('click', (e) => {
     const b = e.target.closest('button');
     if (b && ed.it) applyAspect(b.dataset.a);
@@ -1988,13 +2048,14 @@
   const ftApply = (fn) => {
     const it = selItem();
     if (!it || !it.free) return;
-    fn(it.free);
+    fn(it.free, it);
     render();
+    renderThumbs();
     commit();
   };
-  els.ftSMinus.addEventListener('click', () => ftApply((f) => { f.s = clamp(f.s / 1.01, 0.02, 20); }));
-  els.ftSPlus.addEventListener('click', () => ftApply((f) => { f.s = clamp(f.s * 1.01, 0.02, 20); }));
-  els.ftS1.addEventListener('click', () => ftApply((f) => { f.s = 1; }));
+  els.ftSMinus.addEventListener('click', () => ftApply((f, it) => { it.edit.scale = clamp(scaleOf(it.edit) / 1.01, 0.05, 10); }));
+  els.ftSPlus.addEventListener('click', () => ftApply((f, it) => { it.edit.scale = clamp(scaleOf(it.edit) * 1.01, 0.05, 10); }));
+  els.ftS1.addEventListener('click', () => ftApply((f, it) => { it.edit.scale = 1; }));
   els.ftAMinus.addEventListener('click', () => ftApply((f) => { f.a = normAngle(f.a - 0.1); }));
   els.ftAPlus.addEventListener('click', () => ftApply((f) => { f.a = normAngle(f.a + 0.1); }));
   els.ftA0.addEventListener('click', () => ftApply((f) => { f.a = 0; }));

@@ -36,6 +36,14 @@ oder über „Teilen / in Galerie speichern …“ direkt in Google Fotos, Whats
 - Export: JPEG / PNG (verlustfrei) / WebP; „Original“ = volle Auflösung.
 - Alles läuft lokal im Browser, nichts wird hochgeladen.
 
+## Fotos einzeln vergrößern/verkleinern (ab v2.2)
+- **Zwei Finger auf EINEM Foto** auseinander-/zusammenziehen = **nur dieses Foto** wird größer/kleiner – in jedem Layout.
+  Die anderen Fotos bleiben unverändert, die Leinwand wächst mit. Drehen per zwei Finger erst ab 10° Fingerdrehung.
+- Finger auf verschiedenen Fotos oder daneben, Doppeltipp, +/−: **Ansicht** zoomen.
+- Genaue Größe auch im Editor (✎): „Größe in der Collage“ 10–400 %.
+- **Abstand & Rand** sind standardmäßig aus (0) und starten immer bei 0; die Regler sind unter
+  „Abstand & Rand (optional)“ zugeklappt.
+
 ## Bearbeiten, Zoomen, Sortieren (ab v2.0)
 - **Foto bearbeiten:** Foto in der Vorschau antippen oder ✎ in der Liste.
   - ↺/↻ 90° drehen, ⇆/⇅ spiegeln – verlustfrei, Pixel bleiben exakt erhalten.

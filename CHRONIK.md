@@ -55,3 +55,14 @@
   1:1-Ausschnitt exakt quadratisch, größere Touch-Knöpfe, Resize nur bei Breitenänderung, `overflow-anchor: none`
   (Bugfix: Scroll-Anchoring ließ Foto beim Ziehen springen), Service Worker mit no-cache/Timeout.
 - Tests: v2.js (16) + free.js (13, echte Touch-Gesten per CDP) + pwa.js – alle grün, keine JS-Fehler.
+
+## 2026-11-03 – v2.2 (Fotos separat skalieren, Abstand/Rand optional)
+- Nutzer-Feedback: Pinch veränderte beide Fotos (= Ansicht-Zoom). Gewünscht: jedes Foto separat in der Vorschau skalieren.
+- Neu: `edit.scale` (Größe je Foto, 1 = Originalpixel), `sdims()` = Endgröße × scale; alle Layouts nutzen sdims.
+  Frei-Modus nutzt ebenfalls `edit.scale` (früher `free.s`).
+- Gesten-Regel beim 2. Finger: beide Finger auf demselben Foto → `ptransform` (nur dieses Foto skalieren, Drehen erst ab 10°,
+  Einrasten 0/90°, im Frei-Modus zusätzlich verschieben); sonst → Ansicht-Pinch. `view.lock` verhindert Springen.
+- Editor: Regler „Größe in der Collage“ 10–400 %. Liste zeigt „· 300 %“.
+- Abstand/Rand: nicht mehr gespeichert (Start immer 0), Regler in zugeklapptem `<details>` „optional“.
+- Tests: sep.js (10, Touch per CDP: nur Foto 1 wächst, nur Foto 2 schrumpft, keine versehentliche Drehung,
+  Finger auf zwei Fotos = Ansicht-Zoom, Rückgängig), free.js, v2.js – alle grün.
