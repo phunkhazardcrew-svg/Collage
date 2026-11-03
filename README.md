@@ -36,6 +36,16 @@ oder über „Teilen / in Galerie speichern …“ direkt in Google Fotos, Whats
 - Export: JPEG / PNG (verlustfrei) / WebP; „Original“ = volle Auflösung.
 - Alles läuft lokal im Browser, nichts wird hochgeladen.
 
+## Bearbeiten, Zoomen, Sortieren (ab v2.0)
+- **Foto bearbeiten:** Foto in der Vorschau antippen oder ✎ in der Liste.
+  - ↺/↻ 90° drehen, ⇆/⇅ spiegeln – verlustfrei, Pixel bleiben exakt erhalten.
+  - **Begradigen:** frei drehen (−45° … +45°, 0,1°-Schritte). Nichts wird abgeschnitten, die Ecken werden Hintergrund (schwarz).
+  - **Ausschnitt** (freiwillig): Ganzes Foto (Standard), Frei, 1:1, 4:3, 3:4, 16:9, 9:16 – Ecken ziehen, Rahmen verschieben.
+- **Vorschau-Zoom:** zwei Finger / Mausrad / Doppeltipp, Knöpfe −, +, 1:1 (Originalpixel), Einpassen, Vollbild.
+- **Sortieren:** ≡-Griff in der Liste ziehen, oder in der Vorschau gedrückt halten & auf ein anderes Foto ziehen (tauscht).
+- **Rückgängig / Wiederholen:** ↶ ↷ oben in der Vorschau (Strg+Z / Strg+Y).
+- Einstellungen (Layout, Abstand, Format …) werden im Browser gemerkt.
+
 ## Grenzen
 Browser begrenzen die Canvas-Größe (Desktop ca. 268 MP / 32767 px Kante, iPhone/iPad deutlich weniger,
 WebP max. 16383 px Kante). Ist das Ergebnis größer, verkleinert die App automatisch und zeigt einen Hinweis.

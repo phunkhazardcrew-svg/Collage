@@ -27,6 +27,7 @@
     margin: 0; background: var(--bg); color: var(--text);
     font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   }
+  body.noscroll { overflow: hidden; }
   header { padding: 16px; border-bottom: 1px solid var(--border); background: var(--panel); }
   header h1 { margin: 0; font-size: 1.25rem; }
   header p { margin: 4px 0 0; color: var(--muted); font-size: .9rem; }
@@ -40,7 +41,6 @@
     main > .controls { display: contents; }
     main .panel + .panel { margin-top: 0; }
     #photosPanel { order: 1; } #previewPanel { order: 2; } #layoutPanel { order: 3; } #exportPanel { order: 4; }
-    #preview { max-height: 60vh; }
   }
   .panel {
     background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
@@ -48,6 +48,10 @@
   }
   .panel h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; }
   .panel + .panel { margin-top: 16px; }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+  .panel-head h2 { margin: 0; }
+  .panel-head .btns { display: flex; gap: 6px; }
+  .hint { color: var(--muted); font-size: .8rem; margin: 8px 0 0; }
   #drop {
     border: 2px dashed var(--border); border-radius: 10px; padding: 18px; text-align: center;
     cursor: pointer; color: var(--muted); transition: border-color .15s, background .15s;
@@ -57,28 +61,34 @@
   #fileInput { display: none; }
   #drop .touch { display: none; }
   @media (pointer: coarse) { #drop .touch { display: inline; } #drop .desk { display: none; } }
+
+  /* Fotoliste */
   #thumbs { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
   #thumbs li {
     display: flex; align-items: center; gap: 8px; padding: 6px; border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: 8px; background: var(--panel); transition: transform .15s;
   }
-  #thumbs img { width: 52px; height: 52px; object-fit: contain; background: var(--checker-a); border-radius: 4px; flex: none; }
+  #thumbs li.dragging { transition: none; position: relative; z-index: 2; box-shadow: 0 6px 18px rgba(0,0,0,.25); border-color: var(--accent); }
+  #thumbs canvas.th { width: 52px; height: 52px; flex: none; border-radius: 4px; background: var(--checker-a); cursor: pointer; }
   #thumbs .meta { flex: 1; min-width: 0; font-size: .82rem; }
   #thumbs .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #thumbs .dim { color: var(--muted); }
+  #thumbs .edited { color: var(--accent); }
   .icon-btn {
     border: 1px solid var(--border); background: transparent; color: var(--text);
-    width: 30px; height: 30px; border-radius: 6px; cursor: pointer; font-size: 14px; flex: none;
+    min-width: 34px; height: 34px; border-radius: 6px; cursor: pointer; font-size: 15px; flex: none; padding: 0 6px;
   }
   .icon-btn:hover:not(:disabled) { border-color: var(--accent); }
   .icon-btn:disabled { opacity: .35; cursor: default; }
   .icon-btn.del:hover { border-color: var(--danger); color: var(--danger); }
+  .icon-btn.grip { cursor: grab; touch-action: none; border-style: dashed; }
+
   .field { margin-bottom: 12px; }
   .field > label, .field > .label { display: block; font-size: .85rem; margin-bottom: 4px; }
   .seg { display: flex; flex-wrap: wrap; gap: 4px; }
   .seg button {
     flex: 1 1 auto; border: 1px solid var(--border); background: transparent; color: var(--text);
-    padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: .82rem;
+    padding: 7px 8px; border-radius: 6px; cursor: pointer; font-size: .82rem;
   }
   .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
   input[type="range"] { width: 100%; }
@@ -98,9 +108,10 @@
     width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 8px; background: transparent;
     color: var(--text); font: inherit; cursor: pointer; margin-top: 8px;
   }
-  #previewWrap {
-    display: flex; align-items: center; justify-content: center; min-height: 300px;
-    border-radius: 8px; overflow: auto;
+  .secondary:disabled { opacity: .45; cursor: default; }
+
+  /* Vorschau mit Zoom */
+  .checker {
     background-color: var(--checker-b);
     background-image:
       linear-gradient(45deg, var(--checker-a) 25%, transparent 25%),
@@ -109,16 +120,60 @@
       linear-gradient(-45deg, transparent 75%, var(--checker-a) 75%);
     background-size: 20px 20px; background-position: 0 0, 0 10px, 10px -10px, -10px 0;
   }
-  #preview { max-width: 100%; max-height: 75vh; display: block; box-shadow: 0 2px 12px rgba(0,0,0,.2); }
-  #empty { color: var(--muted); padding: 40px 16px; text-align: center; }
+  #viewport {
+    position: relative; overflow: hidden; border-radius: 8px; height: 300px;
+    touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab;
+  }
+  #preview { position: absolute; left: 0; top: 0; transform-origin: 0 0; box-shadow: 0 2px 12px rgba(0,0,0,.25); }
+  .mark { position: absolute; pointer-events: none; border: 3px solid var(--accent); border-radius: 3px; }
+  .mark.src { border-style: dashed; background: color-mix(in srgb, var(--accent) 20%, transparent); }
+  .zoombar {
+    position: absolute; right: 8px; bottom: 8px; display: flex; align-items: center; gap: 2px;
+    background: rgba(0,0,0,.6); border-radius: 10px; padding: 3px; cursor: default;
+  }
+  .zoombar button {
+    color: #fff; background: transparent; border: 0; min-width: 38px; height: 38px; border-radius: 8px;
+    font: 600 16px/1 system-ui, sans-serif; cursor: pointer; display: grid; place-items: center;
+  }
+  .zoombar button:hover { background: rgba(255,255,255,.15); }
+  .zoombar span { color: #fff; font-size: 12px; min-width: 50px; text-align: center; }
+  .zoombar svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; }
+  #empty { color: var(--muted); padding: 40px 16px; text-align: center; border-radius: 8px; }
   #info { margin-top: 10px; font-size: .85rem; color: var(--muted); }
   #info.warn { color: var(--danger); }
+  #previewPanel.fs {
+    position: fixed; inset: 0; z-index: 50; border-radius: 0; margin: 0; border: 0;
+    display: flex; flex-direction: column;
+  }
+  #previewPanel.fs #viewport { flex: 1; height: auto !important; }
+
+  /* Editor */
+  dialog#editor {
+    width: min(760px, 100vw); max-height: 100dvh; padding: 0; border: 0; border-radius: 12px;
+    background: var(--panel); color: var(--text); overflow: hidden;
+  }
+  dialog#editor::backdrop { background: rgba(0,0,0,.65); }
+  @media (max-width: 640px) {
+    dialog#editor { width: 100vw; height: 100dvh; max-width: none; max-height: none; border-radius: 0; margin: 0; }
+  }
+  .ed { display: flex; flex-direction: column; max-height: 100dvh; height: 100%; }
+  .ed-head { padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; gap: 8px; align-items: baseline; }
+  .ed-head span { color: var(--muted); font-size: .85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ed-body { padding: 12px 14px; overflow: auto; flex: 1; }
+  #edStageWrap { display: flex; justify-content: center; padding: 8px; border-radius: 8px; }
+  #edStage { display: block; touch-action: none; cursor: crosshair; }
+  .ed-result { display: flex; gap: 10px; align-items: center; margin-top: 8px; font-size: .85rem; color: var(--muted); }
+  #edResult { width: 72px; height: 72px; border-radius: 4px; flex: none; }
+  .ed-foot { display: flex; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--border); }
+  .ed-foot button { flex: 1; margin: 0; }
+  .angle-row { display: flex; gap: 8px; align-items: center; }
+  .angle-row input { flex: 1; }
 </style>
 </head>
 <body>
 <header>
   <h1>Foto-Merge</h1>
-  <p>Fotos zusammenfügen – ohne Zuschneiden. Alles läuft lokal im Browser, nichts wird hochgeladen.</p>
+  <p>Fotos zusammenfügen – ohne Zuschneiden, in Originalauflösung. Alles läuft lokal, nichts wird hochgeladen.</p>
 </header>
 
 <main>
@@ -132,6 +187,7 @@
       </div>
       <input id="fileInput" type="file" accept="image/*" multiple>
       <ul id="thumbs"></ul>
+      <p class="hint hidden" id="listHint">≡ ziehen = sortieren · ✎ = drehen, spiegeln, Ausschnitt</p>
     </div>
 
     <div class="panel" id="layoutPanel">
@@ -213,35 +269,118 @@
   </section>
 
   <section class="panel" id="previewPanel">
-    <h2>Vorschau</h2>
-    <div id="previewWrap">
-      <div id="empty">Füge mindestens ein Foto hinzu, um die Vorschau zu sehen.</div>
-      <canvas id="preview" class="hidden"></canvas>
+    <div class="panel-head">
+      <h2>Vorschau</h2>
+      <div class="btns">
+        <button class="icon-btn" id="undoBtn" title="Rückgängig (Strg+Z)" aria-label="Rückgängig" disabled>↶</button>
+        <button class="icon-btn" id="redoBtn" title="Wiederholen (Strg+Y)" aria-label="Wiederholen" disabled>↷</button>
+      </div>
+    </div>
+    <div id="empty" class="checker">Füge mindestens ein Foto hinzu, um die Vorschau zu sehen.</div>
+    <div id="viewport" class="checker hidden">
+      <canvas id="preview"></canvas>
+      <div id="markSrc" class="mark src hidden"></div>
+      <div id="markDst" class="mark hidden"></div>
+      <div class="zoombar">
+        <button type="button" id="zoomOut" title="Verkleinern" aria-label="Verkleinern">−</button>
+        <span id="zoomVal" title="Zoom bezogen auf Originalpixel">100 %</span>
+        <button type="button" id="zoomIn" title="Vergrößern" aria-label="Vergrößern">+</button>
+        <button type="button" id="zoom1" title="Originalpixel (100 %)" aria-label="Originalpixel">1:1</button>
+        <button type="button" id="zoomFit" title="Einpassen" aria-label="Einpassen">
+          <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+        </button>
+        <button type="button" id="fsBtn" title="Vollbild" aria-label="Vollbild">
+          <svg viewBox="0 0 24 24"><path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"/><path d="M4 4l6 6M20 4l-6 6M4 20l6-6M20 20l-6-6"/></svg>
+        </button>
+      </div>
     </div>
     <div id="info"></div>
+    <p class="hint hidden" id="gestureHint"></p>
   </section>
 </main>
+
+<dialog id="editor" aria-labelledby="edTitle">
+  <div class="ed">
+    <div class="ed-head"><strong id="edTitle">Foto bearbeiten</strong><span id="edName"></span></div>
+    <div class="ed-body">
+      <div id="edStageWrap" class="checker"><canvas id="edStage"></canvas></div>
+      <p class="hint" id="edHint">Ecken ziehen = Ausschnitt wählen · Ausschnitt verschieben = hineinziehen</p>
+
+      <div class="field" style="margin-top:10px">
+        <span class="label">Drehen &amp; Spiegeln</span>
+        <div class="seg">
+          <button type="button" id="edRotL" title="90° nach links">↺ 90°</button>
+          <button type="button" id="edRotR" title="90° nach rechts">↻ 90°</button>
+          <button type="button" id="edFlipH" title="Horizontal spiegeln">⇆ Spiegeln</button>
+          <button type="button" id="edFlipV" title="Vertikal spiegeln">⇅ Spiegeln</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="edAngle">Begradigen (frei drehen): <span id="edAngleVal">0,0</span>°</label>
+        <div class="angle-row">
+          <button type="button" class="icon-btn" id="edAngleMinus" aria-label="−0,1°">−</button>
+          <input id="edAngle" type="range" min="-45" max="45" step="0.1" value="0">
+          <button type="button" class="icon-btn" id="edAnglePlus" aria-label="+0,1°">+</button>
+          <button type="button" class="icon-btn" id="edAngle0" title="Auf 0° zurück">0°</button>
+        </div>
+      </div>
+      <div class="field">
+        <span class="label">Ausschnitt</span>
+        <div class="seg" id="edAspect">
+          <button type="button" data-a="none" aria-pressed="true">Ganzes Foto</button>
+          <button type="button" data-a="free" aria-pressed="false">Frei</button>
+          <button type="button" data-a="1:1" aria-pressed="false">1:1</button>
+          <button type="button" data-a="4:3" aria-pressed="false">4:3</button>
+          <button type="button" data-a="3:4" aria-pressed="false">3:4</button>
+          <button type="button" data-a="16:9" aria-pressed="false">16:9</button>
+          <button type="button" data-a="9:16" aria-pressed="false">9:16</button>
+        </div>
+      </div>
+      <div class="ed-result"><canvas id="edResult" class="checker"></canvas><span id="edInfo"></span></div>
+    </div>
+    <div class="ed-foot">
+      <button type="button" class="secondary" id="edReset">Zurücksetzen</button>
+      <button type="button" class="secondary" id="edCancel">Abbrechen</button>
+      <button type="button" class="primary" id="edApply">Übernehmen</button>
+    </div>
+  </div>
+</dialog>
 
 <script>
 (() => {
   'use strict';
 
+  // ---------- Konstanten ----------
   // Obergrenzen für Canvas. Desktop-Chrome/Firefox schaffen ~32767 px Kante bzw. ~268 MP;
-  // Safari/iOS weniger. Ob die Größe wirklich geht, wird beim Export geprüft (canvasUsable),
-  // notfalls wird schrittweise verkleinert.
+  // Handys weniger. Ob die Größe wirklich geht, prüft der Export (canvasUsable) und verkleinert notfalls.
   const MAX_SIDE = 32767;
   const MAX_PIXELS = 268_000_000;
   const WEBP_MAX_SIDE = 16383;
-  const PREVIEW_MAX_SIDE = 1600;
+  const SRC_PREVIEW_MAX = 2048;        // verkleinerte Kopie je Foto für schnelle Vorschau
+  const PREVIEW_MAX_SIDE = 4096;       // Vorschau-Canvas (auch beim Zoomen) – schont Handy-Speicher
+  const PREVIEW_MAX_PX = 12_000_000;
+  const HISTORY_MAX = 100;
+  const SETTINGS_KEY = 'fotoMerge.settings.v1';
+  const ASPECTS = { '1:1': 1, '4:3': 4 / 3, '3:4': 3 / 4, '16:9': 16 / 9, '9:16': 9 / 16 };
+  const ASPECT_SWAP = { '4:3': '3:4', '3:4': '4:3', '16:9': '9:16', '9:16': '16:9' };
 
-  /** @type {{id:number, name:string, img:HTMLImageElement, url:string, w:number, h:number}[]} */
+  /**
+   * Ein Foto. edit beschreibt die (verlustfreie) Bearbeitung:
+   *  rot: 0..3 (×90° im Uhrzeigersinn), flipH/flipV: spiegeln, angle: freier Winkel in Grad,
+   *  crop: Ausschnitt in normierten Koordinaten (0..1) des gedrehten+gespiegelten Fotos.
+   * Reihenfolge: Original → 90°-Drehung → Spiegeln → Ausschnitt → freie Drehung.
+   * @typedef {{rot:number, angle:number, flipH:boolean, flipV:boolean, crop:{u0:number,v0:number,u1:number,v1:number}}} Edit
+   * @typedef {{id:number, name:string, img:HTMLImageElement, url:string, w:number, h:number,
+   *            small:{src:CanvasImageSource, rx:number, ry:number}, edit:Edit}} Item
+   */
+  /** @type {Item[]} */
   const images = [];
   let nextId = 1;
-  let notice = null;      // einmalige Warnung, die doRender anzeigt
+  let notice = null;      // einmalige Meldung, die doRender anzeigt
   let exporting = false;  // verhindert parallele Exporte
   let loadGen = 0;        // verwirft Ladevorgänge, die vor "Alle entfernen" gestartet wurden
 
-  const state = {
+  const DEFAULTS = {
     layout: 'h',        // h | v | rows | cols
     perGroup: 2,
     equalize: false,    // false = Originalpixel, Leinwand wächst
@@ -254,10 +393,11 @@
     format: 'image/jpeg',
     quality: 0.95,
   };
+  const state = { ...DEFAULTS };
 
   const $ = (id) => document.getElementById(id);
   const els = {
-    drop: $('drop'), fileInput: $('fileInput'), thumbs: $('thumbs'),
+    drop: $('drop'), fileInput: $('fileInput'), thumbs: $('thumbs'), listHint: $('listHint'),
     layoutSeg: $('layoutSeg'), alignSeg: $('alignSeg'), alignField: $('alignField'),
     perGroupField: $('perGroupField'), perGroup: $('perGroup'), perGroupLabel: $('perGroupLabel'),
     equalize: $('equalize'), equalizeText: $('equalizeText'),
@@ -265,10 +405,136 @@
     bgColor: $('bgColor'), bgTransparent: $('bgTransparent'),
     maxSize: $('maxSize'), format: $('format'), quality: $('quality'), qualityVal: $('qualityVal'),
     qualityField: $('qualityField'), downloadBtn: $('downloadBtn'), shareBtn: $('shareBtn'), clearBtn: $('clearBtn'),
-    preview: $('preview'), empty: $('empty'), info: $('info'),
+    previewPanel: $('previewPanel'), viewport: $('viewport'), preview: $('preview'), empty: $('empty'),
+    info: $('info'), gestureHint: $('gestureHint'), markSrc: $('markSrc'), markDst: $('markDst'),
+    zoomIn: $('zoomIn'), zoomOut: $('zoomOut'), zoom1: $('zoom1'), zoomFit: $('zoomFit'), zoomVal: $('zoomVal'), fsBtn: $('fsBtn'),
+    undoBtn: $('undoBtn'), redoBtn: $('redoBtn'),
+    editor: $('editor'), edName: $('edName'), edStageWrap: $('edStageWrap'), edStage: $('edStage'),
+    edRotL: $('edRotL'), edRotR: $('edRotR'), edFlipH: $('edFlipH'), edFlipV: $('edFlipV'),
+    edAngle: $('edAngle'), edAngleVal: $('edAngleVal'), edAngleMinus: $('edAngleMinus'), edAnglePlus: $('edAnglePlus'),
+    edAngle0: $('edAngle0'), edAspect: $('edAspect'), edResult: $('edResult'), edInfo: $('edInfo'),
+    edReset: $('edReset'), edCancel: $('edCancel'), edApply: $('edApply'),
   };
+  const coarse = matchMedia('(pointer: coarse)').matches;
+
+  // ---------- Einstellungen merken ----------
+
+  function loadSettings() {
+    try {
+      const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
+      if (!s || typeof s !== 'object') return;
+      if (['h', 'v', 'rows', 'cols'].includes(s.layout)) state.layout = s.layout;
+      if (Number.isInteger(s.perGroup) && s.perGroup >= 1 && s.perGroup <= 20) state.perGroup = s.perGroup;
+      if (typeof s.equalize === 'boolean') state.equalize = s.equalize;
+      if (['start', 'center', 'end'].includes(s.align)) state.align = s.align;
+      if (Number.isFinite(s.gap) && s.gap >= 0 && s.gap <= 200) state.gap = s.gap;
+      if (Number.isFinite(s.margin) && s.margin >= 0 && s.margin <= 300) state.margin = s.margin;
+      if (typeof s.bg === 'string' && /^#[0-9a-f]{6}$/i.test(s.bg)) state.bg = s.bg;
+      if (typeof s.transparent === 'boolean') state.transparent = s.transparent;
+      if ([0, 8000, 4000, 2048, 1080].includes(s.maxSize)) state.maxSize = s.maxSize;
+      if (['image/jpeg', 'image/png', 'image/webp'].includes(s.format)) state.format = s.format;
+      if (Number.isFinite(s.quality) && s.quality >= 0.5 && s.quality <= 1) state.quality = s.quality;
+    } catch { /* Speicher nicht verfügbar – Standardwerte */ }
+  }
+
+  function saveSettings() {
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(state)); } catch { /* egal */ }
+  }
+
+  /** Formularfelder an state angleichen (nach Laden / Rückgängig). */
+  function syncInputs() {
+    els.perGroup.value = String(state.perGroup);
+    els.equalize.checked = state.equalize;
+    els.gap.value = String(state.gap);
+    els.margin.value = String(state.margin);
+    els.bgColor.value = state.bg;
+    els.bgTransparent.checked = state.transparent;
+    els.maxSize.value = String(state.maxSize);
+    els.format.value = state.format;
+    els.quality.value = String(Math.round(state.quality * 100));
+  }
+
+  // ---------- Bearbeitung / Geometrie ----------
+
+  const newEdit = () => ({ rot: 0, angle: 0, flipH: false, flipV: false, crop: { u0: 0, v0: 0, u1: 1, v1: 1 } });
+  const cloneEdit = (e) => ({ ...e, crop: { ...e.crop } });
+  const isCropped = (c) => c.u0 > 0 || c.v0 > 0 || c.u1 < 1 || c.v1 < 1;
+  const isEdited = (e) => !!(e.rot || e.angle || e.flipH || e.flipV || isCropped(e.crop));
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+  /** Ausschnitt (im gedrehten/gespiegelten Foto) → ganzzahliges Rechteck im Originalfoto. */
+  function cropToSource(it, e) {
+    const inv = (u, v) => {
+      if (e.flipH) u = 1 - u;
+      if (e.flipV) v = 1 - v;
+      switch (e.rot & 3) {
+        case 1: return [v, 1 - u];
+        case 2: return [1 - u, 1 - v];
+        case 3: return [1 - v, u];
+        default: return [u, v];
+      }
+    };
+    const [a, b] = inv(e.crop.u0, e.crop.v0);
+    const [c, d] = inv(e.crop.u1, e.crop.v1);
+    const sx = Math.round(Math.min(a, c) * it.w), sx1 = Math.round(Math.max(a, c) * it.w);
+    const sy = Math.round(Math.min(b, d) * it.h), sy1 = Math.round(Math.max(b, d) * it.h);
+    const x = clamp(sx, 0, it.w - 1), y = clamp(sy, 0, it.h - 1);
+    return { sx: x, sy: y, sw: clamp(sx1 - x, 1, it.w - x), sh: clamp(sy1 - y, 1, it.h - y) };
+  }
+
+  /** Endgültige Größe eines Fotos nach allen Bearbeitungen (in Originalpixeln). */
+  function dims(it, e = it.edit) {
+    const s = cropToSource(it, e);
+    const odd = e.rot & 1;
+    const cw = odd ? s.sh : s.sw, ch = odd ? s.sw : s.sh;
+    if (!e.angle) return { w: cw, h: ch };
+    const t = Math.abs(e.angle) * Math.PI / 180, cos = Math.cos(t), sin = Math.sin(t);
+    return { w: cw * cos + ch * sin, h: cw * sin + ch * cos };
+  }
+
+  /**
+   * Zeichnet ein Foto (mit Bearbeitung) exakt in das Rechteck x0,y0–x1,y1.
+   * Freie Drehung: das gedrehte Foto passt genau ins Rechteck, die Ecken bleiben Hintergrund.
+   * fast = verkleinerte Kopie verwenden, wenn sie für die Zielgröße reicht (nur Vorschau).
+   */
+  function drawItem(ctx, it, e, x0, y0, x1, y1, fast) {
+    const W = x1 - x0, H = y1 - y0;
+    if (W <= 0 || H <= 0) return;
+    const src = cropToSource(it, e);
+    const odd = e.rot & 1;
+    let bw = W, bh = H; // Größe des (90°-gedrehten) Ausschnitts vor der freien Drehung
+    if (e.angle) {
+      const s = W / dims(it, e).w;
+      bw = (odd ? src.sh : src.sw) * s;
+      bh = (odd ? src.sw : src.sh) * s;
+    }
+    const dw = odd ? bh : bw, dh = odd ? bw : bh; // Zielgröße in Ausrichtung des Originals
+    let img = it.img, rx = 1, ry = 1;
+    if (fast && it.small.src !== it.img && dw / src.sw <= it.small.rx * 1.01) {
+      img = it.small.src; rx = it.small.rx; ry = it.small.ry;
+    }
+    ctx.save();
+    ctx.translate((x0 + x1) / 2, (y0 + y1) / 2);
+    if (e.angle) ctx.rotate(e.angle * Math.PI / 180);
+    if (e.flipH || e.flipV) ctx.scale(e.flipH ? -1 : 1, e.flipV ? -1 : 1);
+    if (e.rot) ctx.rotate(e.rot * Math.PI / 2);
+    ctx.drawImage(img, src.sx * rx, src.sy * ry, src.sw * rx, src.sh * ry, -dw / 2, -dh / 2, dw, dh);
+    ctx.restore();
+  }
 
   // ---------- Bilder laden ----------
+
+  function makeSmall(img, w, h) {
+    const r = Math.min(1, SRC_PREVIEW_MAX / Math.max(w, h));
+    if (r >= 1) return { src: img, rx: 1, ry: 1 };
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(w * r));
+    c.height = Math.max(1, Math.round(h * r));
+    const x = c.getContext('2d');
+    x.imageSmoothingQuality = 'high';
+    x.drawImage(img, 0, 0, c.width, c.height);
+    return { src: c, rx: c.width / w, ry: c.height / h };
+  }
 
   function loadFile(file) {
     return new Promise((resolve) => {
@@ -276,12 +542,13 @@
       const img = new Image();
       img.decoding = 'async';
       img.onload = () => {
-        if (!img.naturalWidth || !img.naturalHeight) {
-          URL.revokeObjectURL(url);
-          resolve(null);
-          return;
+        const w = img.naturalWidth, h = img.naturalHeight;
+        if (!w || !h) { URL.revokeObjectURL(url); resolve(null); return; }
+        try {
+          resolve({ id: nextId++, name: file.name || 'Eingefügtes Bild', img, url, w, h, small: makeSmall(img, w, h), edit: newEdit() });
+        } catch {
+          URL.revokeObjectURL(url); resolve(null);
         }
-        resolve({ id: nextId++, name: file.name || 'Eingefügtes Bild', img, url, w: img.naturalWidth, h: img.naturalHeight });
       };
       img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
       img.src = url;
@@ -292,6 +559,7 @@
     const files = [...fileList].filter((f) => f.type.startsWith('image/') || /\.(jpe?g|png|gif|webp|bmp|avif|heic|heif)$/i.test(f.name));
     if (!files.length) return;
     const gen = loadGen;
+    setInfo('Lade Fotos …');
     const loaded = await Promise.all(files.map(loadFile));
     if (gen !== loadGen) { for (const it of loaded) if (it) URL.revokeObjectURL(it.url); return; }
     const failed = loaded.filter((x) => !x).length;
@@ -299,32 +567,71 @@
     if (failed) notice = `${failed} Datei(en) konnten nicht gelesen werden (Format vom Browser nicht unterstützt?).`;
     renderThumbs();
     render();
+    commit();
   }
 
   function removeImage(id) {
     const i = images.findIndex((x) => x.id === id);
     if (i < 0) return;
-    URL.revokeObjectURL(images[i].url);
-    images.splice(i, 1);
+    images.splice(i, 1); // URL bleibt gültig, damit "Rückgängig" das Foto zurückholen kann
     renderThumbs();
     render();
+    commit();
   }
 
-  function moveImage(id, dir) {
-    const i = images.findIndex((x) => x.id === id);
-    const j = i + dir;
-    if (i < 0 || j < 0 || j >= images.length) return;
-    [images[i], images[j]] = [images[j], images[i]];
+  function moveImage(from, to) {
+    if (from === to || from < 0 || to < 0 || from >= images.length || to >= images.length) return;
+    const [m] = images.splice(from, 1);
+    images.splice(to, 0, m);
     renderThumbs();
     render();
+    commit();
+  }
+
+  // ---------- Fotoliste ----------
+
+  function drawThumb(canvas, it, e = it.edit) {
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    const S = Math.round(52 * dpr);
+    canvas.width = S; canvas.height = S;
+    const ctx = canvas.getContext('2d');
+    const d = dims(it, e);
+    const s = Math.min(S / d.w, S / d.h);
+    const w = d.w * s, h = d.h * s;
+    const x0 = (S - w) / 2, y0 = (S - h) / 2;
+    ctx.imageSmoothingQuality = 'high';
+    if (e.angle) { ctx.fillStyle = state.bg; ctx.fillRect(x0, y0, w, h); }
+    drawItem(ctx, it, e, x0, y0, x0 + w, y0 + h, true);
   }
 
   function renderThumbs() {
     els.thumbs.replaceChildren(...images.map((it, idx) => {
       const li = document.createElement('li');
-      const thumb = document.createElement('img');
-      thumb.src = it.url;
-      thumb.alt = '';
+      li.dataset.id = String(it.id);
+      const mk = (label, title, cls, fn) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'icon-btn' + (cls ? ' ' + cls : '');
+        b.textContent = label;
+        b.title = title;
+        b.setAttribute('aria-label', title);
+        if (fn) b.addEventListener('click', fn);
+        return b;
+      };
+      const grip = mk('≡', 'Ziehen zum Sortieren (oder Pfeiltasten ↑/↓)', 'grip');
+      grip.addEventListener('pointerdown', (e) => startListDrag(e, li, idx));
+      grip.addEventListener('keydown', (e) => {
+        const to = e.key === 'ArrowUp' ? idx - 1 : e.key === 'ArrowDown' ? idx + 1 : -1;
+        if (to < 0 || to >= images.length) return;
+        e.preventDefault();
+        moveImage(idx, to);
+        els.thumbs.querySelector(`li[data-id="${it.id}"] .grip`)?.focus();
+      });
+      const th = document.createElement('canvas');
+      th.className = 'th';
+      th.title = 'Bearbeiten';
+      drawThumb(th, it);
+      th.addEventListener('click', () => openEditor(it.id));
       const meta = document.createElement('div');
       meta.className = 'meta';
       const name = document.createElement('div');
@@ -333,37 +640,66 @@
       name.title = it.name;
       const dim = document.createElement('div');
       dim.className = 'dim';
-      dim.textContent = `${it.w} × ${it.h} px`;
+      const d = dims(it);
+      dim.textContent = `${Math.round(d.w)} × ${Math.round(d.h)} px`;
+      if (isEdited(it.edit)) {
+        const tag = document.createElement('span');
+        tag.className = 'edited';
+        tag.textContent = ' · bearbeitet';
+        dim.append(tag);
+      }
       meta.append(name, dim);
-      const mk = (label, title, cls, disabled, fn) => {
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'icon-btn' + (cls ? ' ' + cls : '');
-        b.textContent = label;
-        b.title = title;
-        b.setAttribute('aria-label', title);
-        b.disabled = disabled;
-        b.addEventListener('click', fn);
-        return b;
-      };
-      li.append(
-        thumb, meta,
-        mk('↑', 'Nach vorne', '', idx === 0, () => moveImage(it.id, -1)),
-        mk('↓', 'Nach hinten', '', idx === images.length - 1, () => moveImage(it.id, 1)),
-        mk('✕', 'Entfernen', 'del', false, () => removeImage(it.id)),
-      );
+      li.append(grip, th, meta,
+        mk('✎', 'Bearbeiten (drehen, spiegeln, Ausschnitt)', '', () => openEditor(it.id)),
+        mk('✕', 'Entfernen', 'del', () => removeImage(it.id)));
       return li;
     }));
+    els.listHint.classList.toggle('hidden', images.length === 0);
+  }
+
+  /** Sortieren per Ziehen am ≡-Griff (Maus und Touch). */
+  function startListDrag(e, li, idx) {
+    if (e.button > 0 || images.length < 2) return;
+    e.preventDefault();
+    const grip = e.currentTarget;
+    grip.setPointerCapture(e.pointerId);
+    const lis = [...els.thumbs.children];
+    const rects = lis.map((l) => l.getBoundingClientRect());
+    const step = rects[1].top - rects[0].top;
+    const y0 = e.clientY;
+    let to = idx;
+    li.classList.add('dragging');
+    const move = (ev) => {
+      const dy = ev.clientY - y0;
+      li.style.transform = `translateY(${dy}px)`;
+      const mid = rects[idx].top + rects[idx].height / 2 + dy;
+      to = 0;
+      for (let i = 0; i < lis.length; i++) {
+        if (i !== idx && rects[i].top + rects[i].height / 2 < mid) to++;
+      }
+      lis.forEach((l, i) => {
+        if (i === idx) return;
+        const s = (idx < i && i <= to) ? -step : (to <= i && i < idx) ? step : 0;
+        l.style.transform = s ? `translateY(${s}px)` : '';
+      });
+    };
+    const end = (ev) => {
+      grip.removeEventListener('pointermove', move);
+      grip.removeEventListener('pointerup', end);
+      grip.removeEventListener('pointercancel', end);
+      for (const l of lis) { l.style.transform = ''; l.classList.remove('dragging'); }
+      if (ev.type === 'pointerup' && to !== idx) moveImage(idx, to);
+    };
+    grip.addEventListener('pointermove', move);
+    grip.addEventListener('pointerup', end);
+    grip.addEventListener('pointercancel', end);
   }
 
   // ---------- Layout-Berechnung ----------
   //
-  // Wir rechnen immer in einem "Haupt-/Querachsen"-System:
-  //   Gruppe = eine Zeile (h, rows) bzw. eine Spalte (v, cols).
-  //   Entlang der Hauptachse liegen die Bilder einer Gruppe hintereinander,
-  //   Gruppen werden entlang der Querachse gestapelt.
-  // Für Spalten-Layouts werden Breite/Höhe vertauscht und am Ende zurückgetauscht.
-  // Jedes Bild wird nur gleichmäßig skaliert (Seitenverhältnis bleibt) – nie beschnitten.
+  // Gruppe = eine Zeile (h, rows) bzw. eine Spalte (v, cols). Entlang der Hauptachse liegen die Bilder
+  // einer Gruppe hintereinander, Gruppen werden entlang der Querachse gestapelt. Für Spalten-Layouts
+  // werden Breite/Höhe vertauscht. Bilder werden nur gleichmäßig skaliert (wenn gewünscht), nie beschnitten.
 
   function groupsFor(list) {
     const n = (state.layout === 'rows' || state.layout === 'cols')
@@ -374,28 +710,21 @@
     return groups;
   }
 
-  /**
-   * Liefert {W, H, rects:[{item,x,y,w,h}]} in Ausgabepixeln (ohne Skalierung durch maxSize).
-   * a = Hauptachse (Länge), b = Querachse (Dicke).
-   */
+  /** Liefert {W, H, rects:[{item,x,y,w,h}]} in Ausgabepixeln (rects in derselben Reihenfolge wie list). */
   function computeLayout(list) {
     const swap = state.layout === 'v' || state.layout === 'cols';
-    const A = (it) => (swap ? it.h : it.w); // Ausdehnung entlang Hauptachse
-    const B = (it) => (swap ? it.w : it.h); // Ausdehnung entlang Querachse
+    const sized = new Map(list.map((it) => [it, dims(it)]));
+    const A = (it) => (swap ? sized.get(it).h : sized.get(it).w); // entlang Hauptachse
+    const B = (it) => (swap ? sized.get(it).w : sized.get(it).h); // entlang Querachse
     const gap = state.gap;
-    const groups = groupsFor(list);
 
-    // Pro Gruppe: Bilder auf gemeinsame Dicke bringen (oder Originalgröße behalten).
-    const groupData = groups.map((g) => {
-      if (state.equalize) {
-        const thick = Math.max(...g.map(B));           // auf größte Dicke -> kein Detailverlust
-        const items = g.map((it) => ({ it, a: A(it) * thick / B(it), b: thick }));
-        const len = items.reduce((s, x) => s + x.a, 0) + gap * (g.length - 1);
-        return { items, len, thick };
-      }
-      const items = g.map((it) => ({ it, a: A(it), b: B(it) }));
+    const groupData = groupsFor(list).map((g) => {
+      const thick = Math.max(...g.map(B));
+      const items = state.equalize
+        ? g.map((it) => ({ it, a: A(it) * thick / B(it), b: thick })) // auf größte Dicke -> kein Detailverlust
+        : g.map((it) => ({ it, a: A(it), b: B(it) }));
       const len = items.reduce((s, x) => s + x.a, 0) + gap * (g.length - 1);
-      return { items, len, thick: Math.max(...items.map((x) => x.b)) };
+      return { items, len, thick };
     });
 
     const totalA = Math.max(...groupData.map((g) => g.len));
@@ -414,28 +743,27 @@
       posB += g.thick + gap;
     }
 
-    const W = swap ? totalB : totalA;
-    const H = swap ? totalA : totalB;
     return {
-      W, H,
+      W: swap ? totalB : totalA,
+      H: swap ? totalA : totalB,
       rects: rects.map((r) => swap
         ? { item: r.item, x: r.b, y: r.a, w: r.lb, h: r.la }
         : { item: r.item, x: r.a, y: r.b, w: r.la, h: r.lb }),
     };
   }
 
-  /** Berechnet den Skalierungsfaktor für eine Zielgröße und Browsergrenzen. */
-  function fitScale(W, H, maxSide) {
+  /** Skalierungsfaktor für eine Zielgröße und die Browsergrenzen. */
+  function fitScale(W, H, maxSide, format = state.format) {
     let s = 1;
     if (maxSide > 0) s = Math.min(s, maxSide / Math.max(W, H));
-    const side = state.format === 'image/webp' ? WEBP_MAX_SIDE : MAX_SIDE;
+    const side = format === 'image/webp' ? WEBP_MAX_SIDE : MAX_SIDE;
     s = Math.min(s, side / Math.max(W, H));
     s = Math.min(s, Math.sqrt(MAX_PIXELS / (W * H)));
     return s;
   }
 
-  /** Zeichnet die Collage auf eine Canvas. scale wirkt auf Bilder, Abstände und Rand. */
-  function draw(canvas, layout, scale, st = state) {
+  /** Zeichnet die Collage. scale wirkt auf Bilder, Abstände und Rand. */
+  function draw(canvas, layout, scale, st = state, fast = false) {
     const m = st.margin;
     const W = Math.max(1, Math.round((layout.W + 2 * m) * scale));
     const H = Math.max(1, Math.round((layout.H + 2 * m) * scale));
@@ -452,14 +780,62 @@
       // Kanten runden, damit benachbarte Bilder ohne Haarlinie aneinanderstoßen.
       const x0 = Math.round((r.x + m) * scale);
       const y0 = Math.round((r.y + m) * scale);
-      const x1 = Math.round((r.x + r.w + m) * scale);
-      const y1 = Math.round((r.y + r.h + m) * scale);
-      ctx.drawImage(r.item.img, x0, y0, Math.max(1, x1 - x0), Math.max(1, y1 - y0));
+      const x1 = Math.max(x0 + 1, Math.round((r.x + r.w + m) * scale));
+      const y1 = Math.max(y0 + 1, Math.round((r.y + r.h + m) * scale));
+      drawItem(ctx, r.item, r.item.edit, x0, y0, x1, y1, fast);
     }
-    return { W, H };
   }
 
-  // ---------- Rendern / UI ----------
+  // ---------- Rückgängig / Wiederholen ----------
+
+  let history = [];
+  let hIndex = -1;
+
+  function snapshot() {
+    const s = { items: images.slice(), edits: images.map((i) => cloneEdit(i.edit)), state: { ...state } };
+    s.key = JSON.stringify([s.items.map((i) => i.id), s.edits, s.state]);
+    return s;
+  }
+
+  /** Aktuellen Zustand als Schritt merken (nur wenn sich etwas geändert hat). */
+  function commit() {
+    const s = snapshot();
+    if (hIndex >= 0 && history[hIndex].key === s.key) return;
+    history = history.slice(0, hIndex + 1);
+    history.push(s);
+    if (history.length > HISTORY_MAX) history.shift();
+    hIndex = history.length - 1;
+    saveSettings();
+    updateUndo();
+  }
+
+  function restore(i) {
+    const s = history[i];
+    hIndex = i;
+    images.length = 0;
+    images.push(...s.items);
+    s.items.forEach((it, j) => { it.edit = cloneEdit(s.edits[j]); });
+    Object.assign(state, s.state);
+    syncInputs();
+    renderThumbs();
+    render();
+    saveSettings();
+    updateUndo();
+  }
+
+  const undo = () => { if (hIndex > 0 && !exporting) restore(hIndex - 1); };
+  const redo = () => { if (hIndex < history.length - 1 && !exporting) restore(hIndex + 1); };
+
+  function updateUndo() {
+    els.undoBtn.disabled = hIndex <= 0;
+    els.redoBtn.disabled = hIndex >= history.length - 1;
+  }
+
+  // ---------- Vorschau: Rendern, Zoom, Gesten ----------
+
+  const view = { z: 1, tx: 0, ty: 0, cssW: 1, cssH: 1, vpW: 1, vpH: 1, rendered: 0 };
+  /** Aktuelles Layout der Vorschau: {layout, fullW, fullH, outW, outH, margin, count} */
+  let cur = null;
 
   let rafId = 0;
   function render() {
@@ -470,11 +846,18 @@
   function doRender() {
     updateControls();
     const has = images.length > 0;
-    els.preview.classList.toggle('hidden', !has);
+    els.viewport.classList.toggle('hidden', !has);
     els.empty.classList.toggle('hidden', has);
+    els.gestureHint.classList.toggle('hidden', !has);
     els.downloadBtn.disabled = !has || exporting;
     els.shareBtn.disabled = !has || exporting;
-    if (!has) { setInfo(notice || '', !!notice); notice = null; return; }
+    if (!has) {
+      cur = null;
+      if (els.previewPanel.classList.contains('fs')) toggleFullscreen(false);
+      setInfo(notice || '', !!notice);
+      notice = null;
+      return;
+    }
 
     const layout = computeLayout(images);
     const fullW = layout.W + 2 * state.margin;
@@ -482,17 +865,266 @@
     const outScale = fitScale(fullW, fullH, state.maxSize);
     const outW = Math.max(1, Math.round(fullW * outScale));
     const outH = Math.max(1, Math.round(fullH * outScale));
+    if (!cur || cur.count !== images.length) view.z = 1; // bei neuen/entfernten Fotos wieder einpassen
+    cur = { layout, fullW, fullH, outW, outH, margin: state.margin, count: images.length };
 
-    // Vorschau in reduzierter Auflösung (schneller), Export später in voller Größe.
-    const prevScale = Math.min(outScale, PREVIEW_MAX_SIDE / Math.max(fullW, fullH));
-    draw(els.preview, layout, prevScale);
+    sizeViewport();
+    renderPreviewCanvas();
 
     const capped = outScale < 1 && (state.maxSize === 0 || Math.max(fullW, fullH) * outScale < state.maxSize - 1);
-    let msg = `Ausgabe: ${outW} × ${outH} px · ${images.length} Foto(s)`;
+    const mp = (outW * outH / 1e6).toFixed(1).replace('.', ',');
+    let msg = `Ausgabe: ${outW} × ${outH} px (${mp} MP) · ${images.length} Foto(s)`;
     if (capped) msg += ' · auf Browser-Maximum verkleinert';
     if (notice) { setInfo(`${notice} · ${msg}`, true); notice = null; }
     else setInfo(msg, false);
   }
+
+  function sizeViewport() {
+    const vp = els.viewport;
+    const fs = els.previewPanel.classList.contains('fs');
+    const vpW = vp.clientWidth || 1;
+    let vpH;
+    if (fs) {
+      vp.style.height = '';
+      vpH = vp.clientHeight || 1;
+    } else {
+      const maxH = Math.min(window.innerHeight * (coarse ? 0.6 : 0.72), 900);
+      vpH = Math.max(120, Math.round(Math.min(maxH, vpW * cur.fullH / cur.fullW)));
+      vp.style.height = vpH + 'px';
+    }
+    const fit = Math.min(vpW / cur.fullW, vpH / cur.fullH);
+    view.cssW = cur.fullW * fit;
+    view.cssH = cur.fullH * fit;
+    view.vpW = vpW;
+    view.vpH = vpH;
+    els.preview.style.width = view.cssW + 'px';
+    els.preview.style.height = view.cssH + 'px';
+    clampView();
+    applyView();
+  }
+
+  /** Zoomstufe, bei der 1 Bildpixel = 1 Bildschirmpixel ist. */
+  const zoom1 = () => (cur ? cur.outW / (view.cssW * (window.devicePixelRatio || 1)) : 1);
+  const maxZoom = () => Math.max(4, zoom1() * 4);
+
+  function clampView() {
+    view.z = clamp(view.z, 1, maxZoom());
+    const sw = view.cssW * view.z, sh = view.cssH * view.z;
+    view.tx = sw <= view.vpW ? (view.vpW - sw) / 2 : clamp(view.tx, view.vpW - sw, 0);
+    view.ty = sh <= view.vpH ? (view.vpH - sh) / 2 : clamp(view.ty, view.vpH - sh, 0);
+  }
+
+  function applyView() {
+    els.preview.style.transform = `translate(${view.tx}px, ${view.ty}px) scale(${view.z})`;
+    const pct = (view.z / zoom1()) * 100;
+    els.zoomVal.textContent = (pct >= 10 ? Math.round(pct) : pct.toFixed(1).replace('.', ',')) + ' %';
+    els.viewport.style.cursor = view.z > 1.001 ? 'grab' : 'default';
+  }
+
+  function zoomAt(z, px, py) {
+    if (!cur) return;
+    const ix = (px - view.tx) / view.z, iy = (py - view.ty) / view.z;
+    view.z = clamp(z, 1, maxZoom());
+    view.tx = px - ix * view.z;
+    view.ty = py - iy * view.z;
+    clampView();
+    applyView();
+    scheduleHiRes();
+  }
+
+  /** Vorschau-Auflösung passend zur Zoomstufe (begrenzt, damit Handys nicht überlaufen). */
+  function previewScale() {
+    const dpr = window.devicePixelRatio || 1;
+    const px = Math.min(cur.outW, view.cssW * view.z * dpr);
+    return Math.min(px / cur.fullW,
+      PREVIEW_MAX_SIDE / Math.max(cur.fullW, cur.fullH),
+      Math.sqrt(PREVIEW_MAX_PX / (cur.fullW * cur.fullH)));
+  }
+
+  function renderPreviewCanvas() {
+    const s = previewScale();
+    draw(els.preview, cur.layout, s, state, true);
+    view.rendered = s;
+  }
+
+  let hiResTimer = 0;
+  function scheduleHiRes() {
+    clearTimeout(hiResTimer);
+    hiResTimer = setTimeout(() => {
+      if (!cur) return;
+      const s = previewScale();
+      if (s > view.rendered * 1.15 || s < view.rendered * 0.5) renderPreviewCanvas();
+    }, 150);
+  }
+
+  /** Welches Foto liegt unter dem Punkt? → Index oder -1 */
+  function hitIndex(clientX, clientY) {
+    if (!cur) return -1;
+    const r = els.preview.getBoundingClientRect();
+    if (clientX < r.left || clientX > r.right || clientY < r.top || clientY > r.bottom) return -1;
+    const lx = (clientX - r.left) / r.width * cur.fullW - cur.margin;
+    const ly = (clientY - r.top) / r.height * cur.fullH - cur.margin;
+    return cur.layout.rects.findIndex((q) => lx >= q.x && lx <= q.x + q.w && ly >= q.y && ly <= q.y + q.h);
+  }
+
+  function placeMark(el, idx) {
+    if (idx < 0 || !cur || !cur.layout.rects[idx]) { el.classList.add('hidden'); return; }
+    const q = cur.layout.rects[idx];
+    const k = view.cssW * view.z / cur.fullW;
+    Object.assign(el.style, {
+      left: view.tx + (q.x + cur.margin) * k + 'px', top: view.ty + (q.y + cur.margin) * k + 'px',
+      width: q.w * k + 'px', height: q.h * k + 'px',
+    });
+    el.classList.remove('hidden');
+  }
+  const showMarks = (src, dst) => { placeMark(els.markSrc, src); placeMark(els.markDst, dst); };
+  const hideMarks = () => showMarks(-1, -1);
+
+  function toggleFullscreen(on = !els.previewPanel.classList.contains('fs')) {
+    els.previewPanel.classList.toggle('fs', on);
+    document.body.classList.toggle('noscroll', on);
+    els.fsBtn.title = on ? 'Vollbild beenden' : 'Vollbild';
+    els.fsBtn.setAttribute('aria-label', els.fsBtn.title);
+    view.z = 1;
+    if (cur) render();
+  }
+
+  // Gesten: 1 Finger/Maus ziehen = verschieben (gezoomt) bzw. Seite scrollen (Touch) bzw. Fotos tauschen (Maus),
+  // gedrückt halten + ziehen = Fotos tauschen (Touch), 2 Finger = zoomen, Tippen = bearbeiten, Doppeltipp = zoomen.
+  const ptrs = new Map();
+  let gest = null;
+  let lastTap = null;
+  let tapTimer = 0;
+  const vpPoint = (e) => {
+    const r = els.viewport.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  };
+  const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y) || 1;
+  const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+
+  els.viewport.addEventListener('pointerdown', (e) => {
+    if (!cur || e.target.closest('.zoombar')) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    els.viewport.setPointerCapture(e.pointerId);
+    ptrs.set(e.pointerId, vpPoint(e));
+    if (ptrs.size === 2) {
+      if (gest) clearTimeout(gest.lp);
+      hideMarks();
+      const [a, b] = [...ptrs.values()];
+      gest = { type: 'pinch', d: dist(a, b), m: mid(a, b) };
+      return;
+    }
+    if (ptrs.size > 2) return;
+    const p = vpPoint(e);
+    const g = {
+      type: 'pending', id: e.pointerId, x0: p.x, y0: p.y, lx: p.x, ly: p.y, cy: e.clientY,
+      touch: e.pointerType !== 'mouse', hit: hitIndex(e.clientX, e.clientY), target: -1, lp: 0,
+    };
+    gest = g;
+    if (g.touch && g.hit >= 0 && images.length > 1) {
+      g.lp = setTimeout(() => {
+        if (gest !== g || g.type !== 'pending') return;
+        g.type = 'drag';
+        navigator.vibrate?.(15);
+        showMarks(g.hit, -1);
+      }, 450);
+    }
+  });
+
+  els.viewport.addEventListener('pointermove', (e) => {
+    if (!ptrs.has(e.pointerId)) return;
+    const p = vpPoint(e);
+    ptrs.set(e.pointerId, p);
+    const g = gest;
+    if (!g) return;
+    if (g.type === 'pinch') {
+      if (ptrs.size < 2) return;
+      const [a, b] = [...ptrs.values()];
+      const d = dist(a, b), m = mid(a, b);
+      zoomAt(view.z * d / g.d, m.x, m.y);
+      view.tx += m.x - g.m.x;
+      view.ty += m.y - g.m.y;
+      clampView();
+      applyView();
+      g.d = d; g.m = m;
+      return;
+    }
+    if (e.pointerId !== g.id) return;
+    const dx = p.x - g.lx, dy = p.y - g.ly, dcy = e.clientY - g.cy;
+    g.lx = p.x; g.ly = p.y; g.cy = e.clientY;
+    if (g.type === 'pending') {
+      if (Math.hypot(p.x - g.x0, p.y - g.y0) < 8) return;
+      clearTimeout(g.lp);
+      if (view.z > 1.001) g.type = 'pan';
+      else if (g.touch) g.type = 'scroll';
+      else if (g.hit >= 0 && images.length > 1) { g.type = 'drag'; showMarks(g.hit, -1); }
+      else g.type = 'none';
+    }
+    if (g.type === 'pan') {
+      view.tx += dx; view.ty += dy;
+      clampView(); applyView();
+    } else if (g.type === 'scroll') {
+      window.scrollBy(0, -dcy);
+    } else if (g.type === 'drag') {
+      const t = hitIndex(e.clientX, e.clientY);
+      g.target = t;
+      showMarks(g.hit, t !== g.hit ? t : -1);
+    }
+  });
+
+  function endPointer(e) {
+    if (!ptrs.delete(e.pointerId)) return;
+    const g = gest;
+    if (!g) return;
+    if (g.type === 'pinch') {
+      if (ptrs.size === 0) gest = null;
+      scheduleHiRes();
+      return;
+    }
+    if (e.pointerId !== g.id) return;
+    clearTimeout(g.lp);
+    if (e.type === 'pointerup') {
+      if (g.type === 'pending') handleTap(g);
+      else if (g.type === 'drag' && g.target >= 0 && g.target !== g.hit) {
+        const a = g.hit, b = g.target;
+        [images[a], images[b]] = [images[b], images[a]];
+        renderThumbs(); render(); commit();
+      }
+    }
+    hideMarks();
+    gest = null;
+  }
+  els.viewport.addEventListener('pointerup', endPointer);
+  els.viewport.addEventListener('pointercancel', endPointer);
+
+  function handleTap(g) {
+    const now = performance.now();
+    if (lastTap && now - lastTap.t < 320 && Math.hypot(g.x0 - lastTap.x, g.y0 - lastTap.y) < 30) {
+      clearTimeout(tapTimer);
+      lastTap = null;
+      if (view.z > 1.001) zoomAt(1, g.x0, g.y0);
+      else zoomAt(zoom1() > 1.5 ? zoom1() : 3, g.x0, g.y0);
+      return;
+    }
+    lastTap = { t: now, x: g.x0, y: g.y0 };
+    const id = g.hit >= 0 ? images[g.hit]?.id : undefined;
+    clearTimeout(tapTimer);
+    tapTimer = setTimeout(() => { lastTap = null; if (id !== undefined) openEditor(id); }, 320);
+  }
+
+  els.viewport.addEventListener('wheel', (e) => {
+    if (!cur) return;
+    e.preventDefault();
+    const p = vpPoint(e);
+    zoomAt(view.z * Math.exp(-e.deltaY * (e.deltaMode === 1 ? 0.05 : 0.0015)), p.x, p.y);
+  }, { passive: false });
+
+  const center = () => [view.vpW / 2, view.vpH / 2];
+  els.zoomIn.addEventListener('click', () => zoomAt(view.z * 1.5, ...center()));
+  els.zoomOut.addEventListener('click', () => zoomAt(view.z / 1.5, ...center()));
+  els.zoom1.addEventListener('click', () => zoomAt(zoom1(), ...center()));
+  els.zoomFit.addEventListener('click', () => zoomAt(1, ...center()));
+  els.fsBtn.addEventListener('click', () => toggleFullscreen());
 
   function setInfo(text, warn = false) {
     els.info.textContent = text;
@@ -515,7 +1147,266 @@
     els.bgColor.disabled = state.transparent && state.format !== 'image/jpeg';
     for (const b of els.layoutSeg.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === state.layout));
     for (const b of els.alignSeg.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === state.align));
+    els.gestureHint.textContent = coarse
+      ? 'Antippen = Foto bearbeiten · Doppeltipp / zwei Finger = zoomen · gedrückt halten & ziehen = Fotos tauschen'
+      : 'Klick = Foto bearbeiten · Doppelklick / Mausrad = zoomen · Ziehen = Fotos tauschen (gezoomt: verschieben)';
   }
+
+  // ---------- Editor (drehen, spiegeln, begradigen, Ausschnitt) ----------
+
+  const ed = { it: null, e: null, aspect: 'none', css: { w: 1, h: 1 }, drag: null };
+
+  const orientedSize = () => (ed.e.rot & 1 ? { w: ed.it.h, h: ed.it.w } : { w: ed.it.w, h: ed.it.h });
+
+  function openEditor(id) {
+    const it = images.find((x) => x.id === id);
+    if (!it || exporting || els.editor.open) return;
+    ed.it = it;
+    ed.e = cloneEdit(it.edit);
+    ed.aspect = isCropped(ed.e.crop) ? 'free' : 'none';
+    els.edName.textContent = it.name;
+    els.editor.showModal();
+    syncEditorUI();
+    requestAnimationFrame(layoutEditor);
+  }
+
+  function closeEditor(apply) {
+    if (apply && ed.it && images.includes(ed.it)) {
+      ed.it.edit = ed.e;
+      renderThumbs();
+      render();
+      commit();
+    }
+    ed.it = null;
+    ed.drag = null;
+    if (els.editor.open) els.editor.close();
+  }
+
+  function syncEditorUI() {
+    els.edAngle.value = String(ed.e.angle);
+    els.edAngleVal.textContent = ed.e.angle.toFixed(1).replace('.', ',');
+    for (const b of els.edAspect.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.a === ed.aspect));
+  }
+
+  function layoutEditor() {
+    if (!ed.it) return;
+    const wrap = els.edStageWrap;
+    const W = Math.max(50, wrap.clientWidth - 16);
+    const maxH = Math.max(160, Math.min(window.innerHeight * 0.48, 620));
+    const o = orientedSize();
+    const f = Math.min(W / o.w, maxH / o.h);
+    ed.css = { w: o.w * f, h: o.h * f };
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const c = els.edStage;
+    c.style.width = ed.css.w + 'px';
+    c.style.height = ed.css.h + 'px';
+    c.width = Math.max(1, Math.round(ed.css.w * dpr));
+    c.height = Math.max(1, Math.round(ed.css.h * dpr));
+    drawEditor();
+  }
+
+  function drawEditor() {
+    if (!ed.it) return;
+    const c = els.edStage, ctx = c.getContext('2d');
+    const W = c.width, H = c.height, e = ed.e, odd = e.rot & 1;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    ctx.imageSmoothingQuality = 'high';
+    // Ganzes Foto (gedreht + gespiegelt), ohne Ausschnitt und ohne freie Drehung
+    ctx.save();
+    ctx.translate(W / 2, H / 2);
+    if (e.flipH || e.flipV) ctx.scale(e.flipH ? -1 : 1, e.flipV ? -1 : 1);
+    if (e.rot) ctx.rotate(e.rot * Math.PI / 2);
+    const dw = odd ? H : W, dh = odd ? W : H;
+    ctx.drawImage(ed.it.small.src, -dw / 2, -dh / 2, dw, dh);
+    ctx.restore();
+
+    // Ausschnitt-Rahmen
+    const { u0, v0, u1, v1 } = e.crop;
+    const x = u0 * W, y = v0 * H, w = (u1 - u0) * W, h = (v1 - v0) * H;
+    const px = W / ed.css.w; // Gerätepixel je CSS-Pixel
+    if (isCropped(e.crop)) {
+      ctx.fillStyle = 'rgba(0,0,0,.6)';
+      ctx.beginPath();
+      ctx.rect(0, 0, W, H);
+      ctx.rect(x, y, w, h);
+      ctx.fill('evenodd');
+    }
+    if (ed.aspect !== 'none' || isCropped(e.crop)) {
+      ctx.strokeStyle = 'rgba(255,255,255,.45)';
+      ctx.lineWidth = px;
+      ctx.beginPath();
+      for (let i = 1; i < 3; i++) {
+        ctx.moveTo(x + w * i / 3, y); ctx.lineTo(x + w * i / 3, y + h);
+        ctx.moveTo(x, y + h * i / 3); ctx.lineTo(x + w, y + h * i / 3);
+      }
+      ctx.stroke();
+    }
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.5 * px;
+    ctx.strokeRect(x, y, w, h);
+    // Eck-Griffe
+    const L = Math.min(18 * px, w / 2, h / 2);
+    ctx.lineWidth = 4 * px;
+    ctx.beginPath();
+    for (const [cx, cy, sx, sy] of [[x, y, 1, 1], [x + w, y, -1, 1], [x, y + h, 1, -1], [x + w, y + h, -1, -1]]) {
+      const ox = cx + sx * px, oy = cy + sy * px;
+      ctx.moveTo(ox, oy + sy * L); ctx.lineTo(ox, oy); ctx.lineTo(ox + sx * L, oy);
+    }
+    ctx.stroke();
+
+    drawThumbResult();
+  }
+
+  function drawThumbResult() {
+    const c = els.edResult;
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    const S = Math.round(72 * dpr);
+    c.width = S; c.height = S;
+    const ctx = c.getContext('2d');
+    const d = dims(ed.it, ed.e);
+    const s = Math.min(S / d.w, S / d.h);
+    const w = d.w * s, h = d.h * s, x0 = (S - w) / 2, y0 = (S - h) / 2;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.fillStyle = state.bg;
+    ctx.fillRect(x0, y0, w, h);
+    drawItem(ctx, ed.it, ed.e, x0, y0, x0 + w, y0 + h, true);
+    const parts = [];
+    if (isCropped(ed.e.crop)) parts.push('Ausschnitt');
+    if (ed.e.rot) parts.push(`${ed.e.rot * 90}°`);
+    if (ed.e.flipH || ed.e.flipV) parts.push('gespiegelt');
+    if (ed.e.angle) parts.push(`begradigt ${ed.e.angle.toFixed(1).replace('.', ',')}°`);
+    els.edInfo.textContent = `Ergebnis: ${Math.round(d.w)} × ${Math.round(d.h)} px` +
+      (parts.length ? ' · ' + parts.join(', ') : ' · unverändert (Originalpixel)');
+  }
+
+  // Ausschnitt mitdrehen/-spiegeln, damit er an derselben Bildstelle bleibt.
+  const rotCropCW = (c) => ({ u0: 1 - c.v1, v0: c.u0, u1: 1 - c.v0, v1: c.u1 });
+  const rotCropCCW = (c) => ({ u0: c.v0, v0: 1 - c.u1, u1: c.v1, v1: 1 - c.u0 });
+
+  function edRotate(cw) {
+    const e = ed.e;
+    // Bei einfacher Spiegelung dreht die 90°-Drehung optisch andersherum – ausgleichen.
+    const visualCW = cw !== (e.flipH !== e.flipV);
+    e.rot = (e.rot + (visualCW ? 1 : 3)) & 3;
+    e.crop = cw ? rotCropCW(e.crop) : rotCropCCW(e.crop);
+    if (ASPECT_SWAP[ed.aspect]) ed.aspect = ASPECT_SWAP[ed.aspect];
+    syncEditorUI();
+    layoutEditor();
+  }
+
+  function edFlip(horizontal) {
+    const c = ed.e.crop;
+    if (horizontal) { ed.e.flipH = !ed.e.flipH; ed.e.crop = { u0: 1 - c.u1, v0: c.v0, u1: 1 - c.u0, v1: c.v1 }; }
+    else { ed.e.flipV = !ed.e.flipV; ed.e.crop = { u0: c.u0, v0: 1 - c.v1, u1: c.u1, v1: 1 - c.v0 }; }
+    drawEditor();
+  }
+
+  function setAngle(a) {
+    ed.e.angle = Math.round(clamp(a, -45, 45) * 10) / 10 || 0;
+    syncEditorUI();
+    drawEditor();
+  }
+
+  /** Größtes zentriertes Rechteck im Seitenverhältnis A (Breite/Höhe in Pixeln). */
+  function applyAspect(key) {
+    ed.aspect = key;
+    const o = orientedSize();
+    const c = ed.e.crop;
+    if (key === 'none') ed.e.crop = { u0: 0, v0: 0, u1: 1, v1: 1 };
+    else if (ASPECTS[key]) {
+      const A = ASPECTS[key];
+      let wN = 1, hN = 1;
+      if (o.w / o.h > A) wN = A * o.h / o.w; else hN = o.w / (A * o.h);
+      const cx = (c.u0 + c.u1) / 2, cy = (c.v0 + c.v1) / 2;
+      const u0 = clamp(cx - wN / 2, 0, 1 - wN), v0 = clamp(cy - hN / 2, 0, 1 - hN);
+      ed.e.crop = { u0, v0, u1: u0 + wN, v1: v0 + hN };
+    } else if (key === 'free' && !isCropped(c)) {
+      ed.e.crop = { u0: 0.1, v0: 0.1, u1: 0.9, v1: 0.9 }; // sichtbar machen, dass man ziehen kann
+    }
+    syncEditorUI();
+    drawEditor();
+  }
+
+  // Ausschnitt mit Maus/Finger: Ecken ziehen = Größe, innen ziehen = verschieben.
+  els.edStage.addEventListener('pointerdown', (e) => {
+    if (!ed.it) return;
+    const r = els.edStage.getBoundingClientRect();
+    const px = e.clientX - r.left, py = e.clientY - r.top;
+    const c = ed.e.crop, W = ed.css.w, H = ed.css.h;
+    const corners = [[c.u0, c.v0, c.u1, c.v1], [c.u1, c.v0, c.u0, c.v1], [c.u0, c.v1, c.u1, c.v0], [c.u1, c.v1, c.u0, c.v0]];
+    const R = coarse ? 30 : 18;
+    let best = null, bestD = R;
+    for (const [cx, cy, ax, ay] of corners) {
+      const d = Math.hypot(cx * W - px, cy * H - py);
+      if (d < bestD) { bestD = d; best = { ax, ay }; }
+    }
+    if (best) ed.drag = { mode: 'corner', ...best };
+    else if (px >= c.u0 * W && px <= c.u1 * W && py >= c.v0 * H && py <= c.v1 * H && isCropped(c)) {
+      ed.drag = { mode: 'move', x0: px, y0: py, c0: { ...c } };
+    } else return;
+    els.edStage.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+
+  els.edStage.addEventListener('pointermove', (e) => {
+    const g = ed.drag;
+    if (!g || !ed.it) return;
+    const r = els.edStage.getBoundingClientRect();
+    const px = e.clientX - r.left, py = e.clientY - r.top;
+    const W = ed.css.w, H = ed.css.h;
+    if (g.mode === 'move') {
+      const c0 = g.c0, w = c0.u1 - c0.u0, h = c0.v1 - c0.v0;
+      const u0 = clamp(c0.u0 + (px - g.x0) / W, 0, 1 - w), v0 = clamp(c0.v0 + (py - g.y0) / H, 0, 1 - h);
+      ed.e.crop = { u0, v0, u1: u0 + w, v1: v0 + h };
+    } else {
+      if (ed.aspect === 'none') { ed.aspect = 'free'; syncEditorUI(); }
+      const o = orientedSize();
+      let nx = clamp(px / W, 0, 1), ny = clamp(py / H, 0, 1);
+      const sx = nx >= g.ax ? 1 : -1, sy = ny >= g.ay ? 1 : -1;
+      let wp = Math.abs(nx - g.ax) * o.w, hp = Math.abs(ny - g.ay) * o.h; // in Originalpixeln
+      const minPx = 20 * o.w / W; // mindestens ~20 CSS-Pixel
+      const A = ASPECTS[ed.aspect];
+      if (A) {
+        if (wp / Math.max(hp, 1e-9) > A) wp = hp * A; else hp = wp / A;
+        if (wp < minPx) { wp = minPx; hp = wp / A; }
+        const limW = (sx > 0 ? 1 - g.ax : g.ax) * o.w, limH = (sy > 0 ? 1 - g.ay : g.ay) * o.h;
+        if (wp > limW) { wp = limW; hp = wp / A; }
+        if (hp > limH) { hp = limH; wp = hp * A; }
+      } else {
+        wp = Math.max(wp, minPx); hp = Math.max(hp, minPx * o.h / o.w * W / H);
+        wp = Math.min(wp, (sx > 0 ? 1 - g.ax : g.ax) * o.w);
+        hp = Math.min(hp, (sy > 0 ? 1 - g.ay : g.ay) * o.h);
+      }
+      nx = g.ax + sx * wp / o.w;
+      ny = g.ay + sy * hp / o.h;
+      ed.e.crop = {
+        u0: clamp(Math.min(g.ax, nx), 0, 1), v0: clamp(Math.min(g.ay, ny), 0, 1),
+        u1: clamp(Math.max(g.ax, nx), 0, 1), v1: clamp(Math.max(g.ay, ny), 0, 1),
+      };
+    }
+    drawEditor();
+  });
+  const edEnd = () => { ed.drag = null; };
+  els.edStage.addEventListener('pointerup', edEnd);
+  els.edStage.addEventListener('pointercancel', edEnd);
+
+  els.edRotL.addEventListener('click', () => edRotate(false));
+  els.edRotR.addEventListener('click', () => edRotate(true));
+  els.edFlipH.addEventListener('click', () => edFlip(true));
+  els.edFlipV.addEventListener('click', () => edFlip(false));
+  els.edAngle.addEventListener('input', () => setAngle(+els.edAngle.value));
+  els.edAngleMinus.addEventListener('click', () => setAngle(ed.e.angle - 0.1));
+  els.edAnglePlus.addEventListener('click', () => setAngle(ed.e.angle + 0.1));
+  els.edAngle0.addEventListener('click', () => setAngle(0));
+  els.edAspect.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (b && ed.it) applyAspect(b.dataset.a);
+  });
+  els.edReset.addEventListener('click', () => { ed.e = newEdit(); ed.aspect = 'none'; syncEditorUI(); layoutEditor(); });
+  els.edCancel.addEventListener('click', () => closeEditor(false));
+  els.edApply.addEventListener('click', () => closeEditor(true));
+  els.editor.addEventListener('close', () => { ed.it = null; ed.drag = null; });
 
   // ---------- Export ----------
 
@@ -527,19 +1418,19 @@
     const fullW = layout.W + 2 * st.margin;
     const fullH = layout.H + 2 * st.margin;
     const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[st.format];
-    const wanted = fitScale(fullW, fullH, st.maxSize);
+    const wanted = fitScale(fullW, fullH, st.maxSize, st.format);
     exporting = true;
     els.downloadBtn.disabled = true;
     els.shareBtn.disabled = true;
     setInfo('Erzeuge Bild …');
-    // Größte vom Browser tatsächlich unterstützte Größe suchen (wichtig für iPhone/iPad).
+    // Größte vom Browser tatsächlich unterstützte Größe suchen (wichtig für Handys).
     const attempt = (scale, tries) => {
       const canvas = document.createElement('canvas');
       const w = Math.max(1, Math.round(fullW * scale));
       const h = Math.max(1, Math.round(fullH * scale));
-      if (!canvasUsable(canvas, w, h)) return retry(scale, tries);
+      if (!canvasUsable(canvas, w, h)) { retry(scale, tries); return; }
       try {
-        draw(canvas, layout, scale, st);
+        draw(canvas, layout, scale, st, false);
         canvas.toBlob((blob) => {
           canvas.width = canvas.height = 0;
           if (!blob) { retry(scale, tries); return; }
@@ -563,7 +1454,7 @@
       exporting = false;
       if (reduced) notice = 'Hinweis: Dieser Browser kann die volle Größe nicht erzeugen – das Bild wurde verkleinert.';
       render();
-      // Manche Browser (z. B. ältere Safari) können kein WebP erzeugen und liefern PNG.
+      // Manche Browser können kein WebP erzeugen und liefern PNG.
       const realExt = blob.type === st.format ? ext : (blob.type === 'image/png' ? 'png' : ext);
       const d = new Date(), z = (n) => String(n).padStart(2, '0');
       const name = `foto-merge-${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}-${z(d.getHours())}-${z(d.getMinutes())}-${z(d.getSeconds())}.${realExt}`;
@@ -606,7 +1497,7 @@
       ctx.fillStyle = '#ff0000';
       ctx.fillRect(w - 1, h - 1, 1, 1);
       const ok = ctx.getImageData(w - 1, h - 1, 1, 1).data[0] === 255;
-      if (!ok) { canvas.width = canvas.height = 0; }
+      if (!ok) canvas.width = canvas.height = 0;
       return ok;
     } catch {
       canvas.width = canvas.height = 0;
@@ -635,7 +1526,7 @@
   window.addEventListener('dragover', (e) => e.preventDefault());
   window.addEventListener('drop', (e) => {
     e.preventDefault();
-    if (!els.drop.contains(e.target)) addFiles(e.dataTransfer.files);
+    if (!els.drop.contains(e.target) && e.dataTransfer?.files?.length) addFiles(e.dataTransfer.files);
   });
   window.addEventListener('paste', (e) => {
     const files = [...(e.clipboardData?.items || [])]
@@ -647,11 +1538,11 @@
 
   els.layoutSeg.addEventListener('click', (e) => {
     const b = e.target.closest('button');
-    if (b) { state.layout = b.dataset.v; render(); }
+    if (b) { state.layout = b.dataset.v; render(); commit(); }
   });
   els.alignSeg.addEventListener('click', (e) => {
     const b = e.target.closest('button');
-    if (b) { state.align = b.dataset.v; render(); }
+    if (b) { state.align = b.dataset.v; render(); commit(); }
   });
   els.perGroup.addEventListener('input', () => {
     const v = parseInt(els.perGroup.value, 10);
@@ -661,16 +1552,50 @@
       render();
     }
   });
-  els.equalize.addEventListener('change', () => { state.equalize = els.equalize.checked; render(); });
+  els.perGroup.addEventListener('change', () => { els.perGroup.value = String(state.perGroup); commit(); });
+  els.equalize.addEventListener('change', () => { state.equalize = els.equalize.checked; render(); commit(); });
   els.gap.addEventListener('input', () => { state.gap = +els.gap.value; render(); });
   els.margin.addEventListener('input', () => { state.margin = +els.margin.value; render(); });
   els.bgColor.addEventListener('input', () => { state.bg = els.bgColor.value; render(); });
-  els.bgTransparent.addEventListener('change', () => { state.transparent = els.bgTransparent.checked; render(); });
-  els.maxSize.addEventListener('change', () => { state.maxSize = +els.maxSize.value; render(); });
-  els.format.addEventListener('change', () => { state.format = els.format.value; render(); });
-  els.quality.addEventListener('input', () => { state.quality = +els.quality.value / 100; render(); });
+  els.quality.addEventListener('input', () => { state.quality = +els.quality.value / 100; updateControls(); });
+  for (const el of [els.gap, els.margin, els.bgColor, els.quality]) el.addEventListener('change', commit);
+  els.bgTransparent.addEventListener('change', () => { state.transparent = els.bgTransparent.checked; render(); commit(); });
+  els.maxSize.addEventListener('change', () => { state.maxSize = +els.maxSize.value; render(); commit(); });
+  els.format.addEventListener('change', () => { state.format = els.format.value; render(); commit(); });
   els.downloadBtn.addEventListener('click', () => download('save'));
   els.shareBtn.addEventListener('click', () => download('share'));
+  els.undoBtn.addEventListener('click', undo);
+  els.redoBtn.addEventListener('click', redo);
+  els.clearBtn.addEventListener('click', () => {
+    if (!images.length) return;
+    if (!confirm(`Alle ${images.length} Foto(s) entfernen?`)) return;
+    loadGen++;
+    const urls = new Set(images.map((i) => i.url));
+    for (const s of history) for (const i of s.items) urls.add(i.url);
+    for (const u of urls) URL.revokeObjectURL(u);
+    images.length = 0;
+    history = [];
+    hIndex = -1;
+    renderThumbs();
+    render();
+    commit();
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if (els.editor.open) return;
+    if (e.key === 'Escape' && els.previewPanel.classList.contains('fs')) { toggleFullscreen(false); return; }
+    if (e.target.closest?.('input, select, textarea')) return;
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+    else if (mod && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) { e.preventDefault(); redo(); }
+  });
+
+  let resizeTimer = 0;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { render(); if (ed.it) layoutEditor(); }, 100);
+  });
+
   // Teilen-Knopf nur zeigen, wo das Teilen von Bilddateien unterstützt wird (v. a. Handys).
   try {
     const probe = new File([new Uint8Array(1)], 'x.png', { type: 'image/png' });
@@ -681,17 +1606,16 @@
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
   }
-  els.clearBtn.addEventListener('click', () => {
-    loadGen++;
-    for (const it of images) URL.revokeObjectURL(it.url);
-    images.length = 0;
-    renderThumbs();
-    render();
-  });
 
   // Für automatisierte Tests zugänglich machen (keine Auswirkung auf die Nutzung).
-  window.__fotoMerge = { state, images, computeLayout, fitScale, render: doRender };
+  window.__fotoMerge = {
+    state, images, view, computeLayout, fitScale, dims, cropToSource, render: doRender,
+    openEditor, closeEditor, ed, undo, redo, zoomAt, get history() { return history; }, get hIndex() { return hIndex; },
+  };
 
+  loadSettings();
+  syncInputs();
+  commit();
   render();
 })();
 </script>
