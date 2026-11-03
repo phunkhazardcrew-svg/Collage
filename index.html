@@ -136,7 +136,7 @@
         <input id="perGroup" type="number" min="1" max="20" value="2">
       </div>
 
-      <label class="check" id="equalizeLabel">
+      <label class="check">
         <input type="checkbox" id="equalize">
         <span id="equalizeText">Gleiche Höhe angleichen (Bilder skalieren statt Originalpixel)</span>
       </label>
@@ -162,7 +162,7 @@
         <span class="label">Hintergrund</span>
         <div class="row">
           <input id="bgColor" type="color" value="#000000" aria-label="Hintergrundfarbe">
-          <label class="check" style="margin:0"><input type="checkbox" id="bgTransparent"> transparent (nur PNG)</label>
+          <label class="check" style="margin:0"><input type="checkbox" id="bgTransparent"> transparent (PNG/WebP)</label>
         </div>
       </div>
     </div>
@@ -221,6 +221,9 @@
   /** @type {{id:number, name:string, img:HTMLImageElement, url:string, w:number, h:number}[]} */
   const images = [];
   let nextId = 1;
+  let notice = null;      // einmalige Warnung, die doRender anzeigt
+  let exporting = false;  // verhindert parallele Exporte
+  let loadGen = 0;        // verwirft Ladevorgänge, die vor "Alle entfernen" gestartet wurden
 
   const state = {
     layout: 'h',        // h | v | rows | cols
@@ -241,7 +244,7 @@
     drop: $('drop'), fileInput: $('fileInput'), thumbs: $('thumbs'),
     layoutSeg: $('layoutSeg'), alignSeg: $('alignSeg'), alignField: $('alignField'),
     perGroupField: $('perGroupField'), perGroup: $('perGroup'), perGroupLabel: $('perGroupLabel'),
-    equalize: $('equalize'), equalizeLabel: $('equalizeLabel'), equalizeText: $('equalizeText'),
+    equalize: $('equalize'), equalizeText: $('equalizeText'),
     gap: $('gap'), gapVal: $('gapVal'), margin: $('margin'), marginVal: $('marginVal'),
     bgColor: $('bgColor'), bgTransparent: $('bgTransparent'),
     maxSize: $('maxSize'), format: $('format'), quality: $('quality'), qualityVal: $('qualityVal'),
@@ -272,12 +275,14 @@
   async function addFiles(fileList) {
     const files = [...fileList].filter((f) => f.type.startsWith('image/') || /\.(jpe?g|png|gif|webp|bmp|avif|heic|heif)$/i.test(f.name));
     if (!files.length) return;
+    const gen = loadGen;
     const loaded = await Promise.all(files.map(loadFile));
+    if (gen !== loadGen) { for (const it of loaded) if (it) URL.revokeObjectURL(it.url); return; }
     const failed = loaded.filter((x) => !x).length;
     for (const item of loaded) if (item) images.push(item);
+    if (failed) notice = `${failed} Datei(en) konnten nicht gelesen werden (Format vom Browser nicht unterstützt?).`;
     renderThumbs();
     render();
-    if (failed) setInfo(`${failed} Datei(en) konnten nicht gelesen werden (Format vom Browser nicht unterstützt?).`, true);
   }
 
   function removeImage(id) {
@@ -363,7 +368,6 @@
     const B = (it) => (swap ? it.w : it.h); // Ausdehnung entlang Querachse
     const gap = state.gap;
     const groups = groupsFor(list);
-    const multi = groups.length > 1;
 
     // Pro Gruppe: Bilder auf gemeinsame Dicke bringen (oder Originalgröße behalten).
     const groupData = groups.map((g) => {
@@ -378,20 +382,6 @@
       return { items, len, thick: Math.max(...items.map((x) => x.b)) };
     });
 
-    // Bei mehreren Gruppen + Angleichen: alle Gruppen auf gleiche Länge skalieren
-    // (bündiger Block ohne Lücken). Die Lücken selbst bleiben konstant.
-    if (state.equalize && multi) {
-      const target = Math.max(...groupData.map((g) => g.len));
-      for (const g of groupData) {
-        const gaps = gap * (g.items.length - 1);
-        const content = g.len - gaps;
-        const f = content > 0 ? (target - gaps) / content : 1;
-        for (const x of g.items) { x.a *= f; x.b *= f; }
-        g.thick *= f;
-        g.len = target;
-      }
-    }
-
     const totalA = Math.max(...groupData.map((g) => g.len));
     const totalB = groupData.reduce((s, g) => s + g.thick, 0) + gap * (groupData.length - 1);
     const alignF = state.align === 'start' ? 0 : state.align === 'end' ? 1 : 0.5;
@@ -399,7 +389,7 @@
     const rects = [];
     let posB = 0;
     for (const g of groupData) {
-      let posA = (totalA - g.len) * alignF; // nur relevant ohne Angleichen
+      let posA = (totalA - g.len) * alignF; // kürzere Zeilen/Spalten ausrichten
       for (const x of g.items) {
         const offB = (g.thick - x.b) * alignF;
         rects.push({ item: x.it, a: posA, b: posB + offB, la: x.a, lb: x.b });
@@ -429,8 +419,8 @@
   }
 
   /** Zeichnet die Collage auf eine Canvas. scale wirkt auf Bilder, Abstände und Rand. */
-  function draw(canvas, layout, scale) {
-    const m = state.margin;
+  function draw(canvas, layout, scale, st = state) {
+    const m = st.margin;
     const W = Math.max(1, Math.round((layout.W + 2 * m) * scale));
     const H = Math.max(1, Math.round((layout.H + 2 * m) * scale));
     canvas.width = W;
@@ -438,9 +428,8 @@
     const ctx = canvas.getContext('2d');
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    ctx.clearRect(0, 0, W, H);
-    if (!state.transparent || state.format === 'image/jpeg') {
-      ctx.fillStyle = state.bg;
+    if (!st.transparent || st.format === 'image/jpeg') {
+      ctx.fillStyle = st.bg;
       ctx.fillRect(0, 0, W, H);
     }
     for (const r of layout.rects) {
@@ -467,8 +456,8 @@
     const has = images.length > 0;
     els.preview.classList.toggle('hidden', !has);
     els.empty.classList.toggle('hidden', has);
-    els.downloadBtn.disabled = !has;
-    if (!has) { setInfo(''); return; }
+    els.downloadBtn.disabled = !has || exporting;
+    if (!has) { setInfo(notice || '', !!notice); notice = null; return; }
 
     const layout = computeLayout(images);
     const fullW = layout.W + 2 * state.margin;
@@ -484,7 +473,8 @@
     const capped = outScale < 1 && (state.maxSize === 0 || Math.max(fullW, fullH) * outScale < state.maxSize - 1);
     let msg = `Ausgabe: ${outW} × ${outH} px · ${images.length} Foto(s)`;
     if (capped) msg += ' · auf Browser-Maximum verkleinert';
-    setInfo(msg, false);
+    if (notice) { setInfo(`${notice} · ${msg}`, true); notice = null; }
+    else setInfo(msg, false);
   }
 
   function setInfo(text, warn = false) {
@@ -500,7 +490,7 @@
     els.equalizeText.textContent = vertical
       ? 'Gleiche Breite angleichen (Bilder skalieren statt Originalpixel)'
       : 'Gleiche Höhe angleichen (Bilder skalieren statt Originalpixel)';
-    els.alignField.classList.toggle('hidden', state.equalize);
+    els.alignField.classList.toggle('hidden', state.equalize && groupsFor(images).length <= 1);
     els.gapVal.textContent = state.gap;
     els.marginVal.textContent = state.margin;
     els.qualityVal.textContent = Math.round(state.quality * 100);
@@ -513,12 +503,14 @@
   // ---------- Export ----------
 
   function download() {
-    if (!images.length) return;
+    if (!images.length || exporting) return;
+    const st = { ...state }; // Einstellungen einfrieren, falls während des Exports geändert wird
     const layout = computeLayout(images);
-    const fullW = layout.W + 2 * state.margin;
-    const fullH = layout.H + 2 * state.margin;
-    const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[state.format];
-    const wanted = fitScale(fullW, fullH, state.maxSize);
+    const fullW = layout.W + 2 * st.margin;
+    const fullH = layout.H + 2 * st.margin;
+    const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[st.format];
+    const wanted = fitScale(fullW, fullH, st.maxSize);
+    exporting = true;
     els.downloadBtn.disabled = true;
     setInfo('Erzeuge Bild …');
     // Größte vom Browser tatsächlich unterstützte Größe suchen (wichtig für iPhone/iPad).
@@ -527,29 +519,37 @@
       const w = Math.max(1, Math.round(fullW * scale));
       const h = Math.max(1, Math.round(fullH * scale));
       if (!canvasUsable(canvas, w, h)) return retry(scale, tries);
-      draw(canvas, layout, scale);
-      canvas.toBlob((blob) => {
-        if (!blob) { canvas.width = canvas.height = 0; retry(scale, tries); return; }
-        finish(blob, scale < wanted - 1e-9);
-      }, state.format, state.quality);
+      try {
+        draw(canvas, layout, scale, st);
+        canvas.toBlob((blob) => {
+          canvas.width = canvas.height = 0;
+          if (!blob) { retry(scale, tries); return; }
+          finish(blob, scale < wanted - 1e-9);
+        }, st.format, st.quality);
+      } catch {
+        canvas.width = canvas.height = 0;
+        retry(scale, tries);
+      }
     };
     const retry = (scale, tries) => {
       if (tries <= 0) {
-        els.downloadBtn.disabled = false;
-        setInfo('Export fehlgeschlagen – bitte kleinere Maximalgröße wählen.', true);
+        exporting = false;
+        notice = 'Export fehlgeschlagen – bitte kleinere Maximalgröße wählen.';
+        render();
         return;
       }
       attempt(scale * 0.75, tries - 1);
     };
     const finish = (blob, reduced) => {
-      els.downloadBtn.disabled = false;
+      exporting = false;
+      if (reduced) notice = 'Hinweis: Dieser Browser kann die volle Größe nicht erzeugen – das Bild wurde verkleinert.';
       render();
-      if (reduced) setTimeout(() => setInfo('Hinweis: Dieser Browser kann die volle Größe nicht erzeugen – das Bild wurde verkleinert.', true), 50);
       // Manche Browser (z. B. ältere Safari) können kein WebP erzeugen und liefern PNG.
-      const realExt = blob.type === state.format ? ext : (blob.type === 'image/png' ? 'png' : ext);
+      const realExt = blob.type === st.format ? ext : (blob.type === 'image/png' ? 'png' : ext);
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `foto-merge-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.${realExt}`;
+      const d = new Date(), z = (n) => String(n).padStart(2, '0');
+      a.download = `foto-merge-${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}-${z(d.getHours())}-${z(d.getMinutes())}-${z(d.getSeconds())}.${realExt}`;
       document.body.append(a);
       a.click();
       a.remove();
@@ -563,13 +563,12 @@
     try {
       canvas.width = w;
       canvas.height = h;
-      if (canvas.width !== w || canvas.height !== h) return false;
+      if (canvas.width !== w || canvas.height !== h) { canvas.width = canvas.height = 0; return false; }
       const ctx = canvas.getContext('2d');
       if (!ctx) return false;
       ctx.fillStyle = '#ff0000';
       ctx.fillRect(w - 1, h - 1, 1, 1);
       const ok = ctx.getImageData(w - 1, h - 1, 1, 1).data[0] === 255;
-      ctx.clearRect(w - 1, h - 1, 1, 1);
       if (!ok) { canvas.width = canvas.height = 0; }
       return ok;
     } catch {
@@ -619,7 +618,11 @@
   });
   els.perGroup.addEventListener('input', () => {
     const v = parseInt(els.perGroup.value, 10);
-    if (v >= 1) { state.perGroup = Math.min(20, v); render(); }
+    if (v >= 1) {
+      state.perGroup = Math.min(20, v);
+      if (v > 20) els.perGroup.value = '20';
+      render();
+    }
   });
   els.equalize.addEventListener('change', () => { state.equalize = els.equalize.checked; render(); });
   els.gap.addEventListener('input', () => { state.gap = +els.gap.value; render(); });
@@ -631,6 +634,7 @@
   els.quality.addEventListener('input', () => { state.quality = +els.quality.value / 100; render(); });
   els.downloadBtn.addEventListener('click', download);
   els.clearBtn.addEventListener('click', () => {
+    loadGen++;
     for (const it of images) URL.revokeObjectURL(it.url);
     images.length = 0;
     renderThumbs();
