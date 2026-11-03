@@ -39,3 +39,19 @@
 - Rückgängig/Wiederholen (100 Schritte), Einstellungen in localStorage, Vollbild-Vorschau.
 - Tests (v2.js): Pixel-exakt bei 0° und 90°, Ausschnitt 1:1, Winkel-Bounding-Box, Ecken-Ziehen, Rad-Zoom, Tauschen per Ziehen, Listen-Sortierung, Einstellungen bleiben – alle grün.
 - Review: 3 parallele Agenten (Geometrie/Export, Gesten/Mobil, Code-Qualität/Performance).
+
+## 2026-11-03 – v2.1 (Frei-Modus + Review-Fixes)
+- Nutzer: Fotos in der Vorschau einzeln drehen & zoomen, um sie zueinander auszurichten; Zwei-Finger-Zoom statt nur Ausschneiden.
+- Neues Layout `free`: `item.free = {cx, cy, s, a}` (Mittelpunkt in Ausgabepixeln, Skalierung, Winkel°).
+  `computeFreeLayout()` → Hülle aller gedrehten Fotos = Leinwand (Ursprung auf ganze Pixel → ungedrehte 100-%-Fotos pixelgenau).
+  Gesten: Tippen = Auswahl, Ziehen = verschieben, 2 Finger auf Foto = drehen+zoomen+verschieben, Griff = drehen+skalieren (Einrasten 0/90°),
+  2 Finger daneben = Ansicht zoomen. `view.lock` hält den Maßstab während einer Bewegung fest.
+  Werkzeuge: Größe ±1 %, Winkel ±0,1°, 90°, Ebenen, durchscheinend obenauf, Pfeiltasten (1/10 px). Rückgängig enthält die freien Lagen.
+- Editor: Pinch/Mausrad zoomt den Ausschnitt (`zoomCrop`), Seitenverhältnis wird gemerkt (`edit.ak`).
+- Review-Fixes (3 Agenten): Export blockiert nicht mehr (rAF+setTimeout), Blob-URLs beim Kürzen der Historie freigeben,
+  Vorschau-Kopien 1280 px, Fotos nacheinander laden mit Fortschritt, maxZoom an Vorschau-Auflösung gekoppelt,
+  Tippen+Pinch öffnet keinen Editor mehr, nach Pinch mit einem Finger weiter verschieben, kein Seiten-Scroll im Vollbild,
+  Zurück-Taste beendet Vollbild, Schwung beim Scrollen durch die Vorschau, Ecken-Ziehen an Bildrand kollabiert nicht mehr,
+  1:1-Ausschnitt exakt quadratisch, größere Touch-Knöpfe, Resize nur bei Breitenänderung, `overflow-anchor: none`
+  (Bugfix: Scroll-Anchoring ließ Foto beim Ziehen springen), Service Worker mit no-cache/Timeout.
+- Tests: v2.js (16) + free.js (13, echte Touch-Gesten per CDP) + pwa.js – alle grün, keine JS-Fehler.

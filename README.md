@@ -41,6 +41,11 @@ oder über „Teilen / in Galerie speichern …“ direkt in Google Fotos, Whats
   - ↺/↻ 90° drehen, ⇆/⇅ spiegeln – verlustfrei, Pixel bleiben exakt erhalten.
   - **Begradigen:** frei drehen (−45° … +45°, 0,1°-Schritte). Nichts wird abgeschnitten, die Ecken werden Hintergrund (schwarz).
   - **Ausschnitt** (freiwillig): Ganzes Foto (Standard), Frei, 1:1, 4:3, 3:4, 16:9, 9:16 – Ecken ziehen, Rahmen verschieben.
+- **Frei (selbst ausrichten):** Layout „Frei“ wählen. Foto antippen = auswählen, ziehen = verschieben,
+  **zwei Finger auf dem Foto = drehen & zoomen**, Griff ◢ = drehen & skalieren (rastet bei 0°/90° ein).
+  Feinregler für Größe (±1 %) und Winkel (±0,1°), Nach vorne/hinten, „durchscheinend obenauf“ zum genauen
+  Übereinanderlegen. Die Leinwand wächst mit, nichts wird abgeschnitten, freie Flächen bleiben schwarz.
+- **Zoomen im Editor:** zwei Finger auseinander (oder Mausrad) zoomt ins Foto hinein (= Ausschnitt).
 - **Vorschau-Zoom:** zwei Finger / Mausrad / Doppeltipp, Knöpfe −, +, 1:1 (Originalpixel), Einpassen, Vollbild.
 - **Sortieren:** ≡-Griff in der Liste ziehen, oder in der Vorschau gedrückt halten & auf ein anderes Foto ziehen (tauscht).
 - **Rückgängig / Wiederholen:** ↶ ↷ oben in der Vorschau (Strg+Z / Strg+Y).

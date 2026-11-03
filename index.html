@@ -28,6 +28,9 @@
     font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   }
   body.noscroll { overflow: hidden; }
+  /* Kein automatisches Nachscrollen, wenn z. B. die Werkzeuge unter der Vorschau erscheinen –
+     sonst springt das Foto unter dem Finger weg. */
+  body { overflow-anchor: none; }
   header { padding: 16px; border-bottom: 1px solid var(--border); background: var(--panel); }
   header h1 { margin: 0; font-size: 1.25rem; }
   header p { margin: 4px 0 0; color: var(--muted); font-size: .9rem; }
@@ -82,6 +85,10 @@
   .icon-btn:disabled { opacity: .35; cursor: default; }
   .icon-btn.del:hover { border-color: var(--danger); color: var(--danger); }
   .icon-btn.grip { cursor: grab; touch-action: none; border-style: dashed; }
+  @media (pointer: coarse) {
+    #thumbs .icon-btn { min-width: 42px; height: 42px; }
+    #thumbs .icon-btn.del { margin-left: 6px; }
+  }
 
   .field { margin-bottom: 12px; }
   .field > label, .field > .label { display: block; font-size: .85rem; margin-bottom: 4px; }
@@ -147,6 +154,18 @@
   }
   #previewPanel.fs #viewport { flex: 1; height: auto !important; }
 
+  /* Freier Modus */
+  .sel { position: absolute; left: 0; top: 0; pointer-events: none; outline: 2px solid var(--accent);
+    box-shadow: 0 0 0 1px rgba(255,255,255,.7); transform-origin: 50% 50%; }
+  .sel-handle { position: absolute; right: -16px; bottom: -16px; width: 32px; height: 32px; border-radius: 50%;
+    background: var(--accent); border: 3px solid #fff; pointer-events: auto; cursor: nwse-resize; touch-action: none;
+    box-shadow: 0 1px 4px rgba(0,0,0,.4); }
+  .free-tools { margin-top: 10px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; }
+  .ft-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .ft-head strong { font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ft-grid { display: grid; grid-template-columns: auto 38px 1fr 38px auto; gap: 6px; align-items: center; margin-bottom: 8px; font-size: .85rem; }
+  .ft-val { text-align: center; font-variant-numeric: tabular-nums; }
+
   /* Editor */
   dialog#editor {
     width: min(760px, 100vw); max-height: 100dvh; padding: 0; border: 0; border-radius: 12px;
@@ -199,6 +218,7 @@
           <button type="button" data-v="v" aria-pressed="false">Untereinander</button>
           <button type="button" data-v="rows" aria-pressed="false">Raster (Zeilen)</button>
           <button type="button" data-v="cols" aria-pressed="false">Raster (Spalten)</button>
+          <button type="button" data-v="free" aria-pressed="false">Frei (selbst ausrichten)</button>
         </div>
       </div>
 
@@ -207,7 +227,14 @@
         <input id="perGroup" type="number" min="1" max="20" value="2">
       </div>
 
-      <label class="check">
+      <div class="field hidden" id="freeField">
+        <p class="hint" style="margin:0 0 8px">Foto in der Vorschau antippen = auswählen · ziehen = verschieben ·
+          zwei Finger auf dem Foto oder Griff ◢ = drehen &amp; zoomen. Die Leinwand wächst mit, nichts wird abgeschnitten.
+          Listen-Reihenfolge = Ebenen (unten → oben).</p>
+        <button type="button" class="secondary" id="freeReset" style="margin:0">Neu anordnen (nebeneinander)</button>
+      </div>
+
+      <label class="check" id="equalizeField">
         <input type="checkbox" id="equalize">
         <span id="equalizeText">Gleiche Höhe angleichen (Bilder skalieren statt Originalpixel)</span>
       </label>
@@ -221,7 +248,7 @@
         </div>
       </div>
 
-      <div class="field">
+      <div class="field" id="gapField">
         <label for="gap">Abstand zwischen Bildern: <span id="gapVal">0</span> px</label>
         <input id="gap" type="range" min="0" max="200" value="0">
       </div>
@@ -281,6 +308,7 @@
       <canvas id="preview"></canvas>
       <div id="markSrc" class="mark src hidden"></div>
       <div id="markDst" class="mark hidden"></div>
+      <div id="sel" class="sel hidden"><div class="sel-handle" id="selHandle" title="Ziehen = drehen &amp; skalieren (Umschalt = ohne Einrasten)"></div></div>
       <div class="zoombar">
         <button type="button" id="zoomOut" title="Verkleinern" aria-label="Verkleinern">−</button>
         <span id="zoomVal" title="Zoom bezogen auf Originalpixel">100 %</span>
@@ -295,6 +323,30 @@
       </div>
     </div>
     <div id="info"></div>
+    <div id="freeTools" class="free-tools hidden">
+      <div class="ft-head"><strong id="ftName"></strong>
+        <button type="button" class="icon-btn" id="ftDeselect" title="Auswahl aufheben" aria-label="Auswahl aufheben">✕</button></div>
+      <div class="ft-grid">
+        <span>Größe</span>
+        <button type="button" class="icon-btn" id="ftSMinus" aria-label="Kleiner">−</button>
+        <span class="ft-val" id="ftSVal">100 %</span>
+        <button type="button" class="icon-btn" id="ftSPlus" aria-label="Größer">+</button>
+        <button type="button" class="icon-btn" id="ftS1" title="Originalgröße">100 %</button>
+        <span>Winkel</span>
+        <button type="button" class="icon-btn" id="ftAMinus" aria-label="−0,1°">−</button>
+        <span class="ft-val" id="ftAVal">0,0°</span>
+        <button type="button" class="icon-btn" id="ftAPlus" aria-label="+0,1°">+</button>
+        <button type="button" class="icon-btn" id="ftA0" title="Gerade stellen">0°</button>
+      </div>
+      <div class="seg">
+        <button type="button" id="ftRotL">↺ 90°</button>
+        <button type="button" id="ftRotR">↻ 90°</button>
+        <button type="button" id="ftFront" title="Über die anderen legen">Nach vorne</button>
+        <button type="button" id="ftBack" title="Unter die anderen legen">Nach hinten</button>
+        <button type="button" id="ftEdit">✎ Bearbeiten</button>
+      </div>
+      <label class="check" style="margin:8px 0 0"><input type="checkbox" id="ftGhost"> Ausgewähltes Foto durchscheinend obenauf (zum genauen Ausrichten, nur Vorschau)</label>
+    </div>
     <p class="hint hidden" id="gestureHint"></p>
   </section>
 </main>
@@ -304,7 +356,7 @@
     <div class="ed-head"><strong id="edTitle">Foto bearbeiten</strong><span id="edName"></span></div>
     <div class="ed-body">
       <div id="edStageWrap" class="checker"><canvas id="edStage"></canvas></div>
-      <p class="hint" id="edHint">Ecken ziehen = Ausschnitt wählen · Ausschnitt verschieben = hineinziehen</p>
+      <p class="hint" id="edHint">Zwei Finger auseinander = hineinzoomen (Mausrad) · Ecken ziehen = Ausschnitt · Rahmen ziehen = verschieben</p>
 
       <div class="field" style="margin-top:10px">
         <span class="label">Drehen &amp; Spiegeln</span>
@@ -356,7 +408,7 @@
   const MAX_SIDE = 32767;
   const MAX_PIXELS = 268_000_000;
   const WEBP_MAX_SIDE = 16383;
-  const SRC_PREVIEW_MAX = 2048;        // verkleinerte Kopie je Foto für schnelle Vorschau
+  const SRC_PREVIEW_MAX = 1280;        // verkleinerte Kopie je Foto für schnelle Vorschau (spart Handy-Speicher)
   const PREVIEW_MAX_SIDE = 4096;       // Vorschau-Canvas (auch beim Zoomen) – schont Handy-Speicher
   const PREVIEW_MAX_PX = 12_000_000;
   const HISTORY_MAX = 100;
@@ -371,7 +423,9 @@
    * Reihenfolge: Original → 90°-Drehung → Spiegeln → Ausschnitt → freie Drehung.
    * @typedef {{rot:number, angle:number, flipH:boolean, flipV:boolean, crop:{u0:number,v0:number,u1:number,v1:number}}} Edit
    * @typedef {{id:number, name:string, img:HTMLImageElement, url:string, w:number, h:number,
-   *            small:{src:CanvasImageSource, rx:number, ry:number}, edit:Edit}} Item
+   *            small:{src:CanvasImageSource, rx:number, ry:number}, edit:Edit,
+   *            free:null|{cx:number, cy:number, s:number, a:number}}} Item
+   * free = Lage im freien Modus: Mittelpunkt (Ausgabepixel), Skalierung s, Drehwinkel a (Grad).
    */
   /** @type {Item[]} */
   const images = [];
@@ -379,9 +433,11 @@
   let notice = null;      // einmalige Meldung, die doRender anzeigt
   let exporting = false;  // verhindert parallele Exporte
   let loadGen = 0;        // verwirft Ladevorgänge, die vor "Alle entfernen" gestartet wurden
+  let selId = null;       // ausgewähltes Foto im freien Modus
+  let ghost = false;      // ausgewähltes Foto in der Vorschau halbtransparent
 
   const DEFAULTS = {
-    layout: 'h',        // h | v | rows | cols
+    layout: 'h',        // h | v | rows | cols | free
     perGroup: 2,
     equalize: false,    // false = Originalpixel, Leinwand wächst
     align: 'center',    // start | center | end
@@ -400,7 +456,11 @@
     drop: $('drop'), fileInput: $('fileInput'), thumbs: $('thumbs'), listHint: $('listHint'),
     layoutSeg: $('layoutSeg'), alignSeg: $('alignSeg'), alignField: $('alignField'),
     perGroupField: $('perGroupField'), perGroup: $('perGroup'), perGroupLabel: $('perGroupLabel'),
-    equalize: $('equalize'), equalizeText: $('equalizeText'),
+    equalize: $('equalize'), equalizeText: $('equalizeText'), equalizeField: $('equalizeField'),
+    gapField: $('gapField'), freeField: $('freeField'), freeReset: $('freeReset'), sel: $('sel'),
+    freeTools: $('freeTools'), ftName: $('ftName'), ftDeselect: $('ftDeselect'), ftSMinus: $('ftSMinus'), ftSVal: $('ftSVal'),
+    ftSPlus: $('ftSPlus'), ftS1: $('ftS1'), ftAMinus: $('ftAMinus'), ftAVal: $('ftAVal'), ftAPlus: $('ftAPlus'), ftA0: $('ftA0'),
+    ftRotL: $('ftRotL'), ftRotR: $('ftRotR'), ftFront: $('ftFront'), ftBack: $('ftBack'), ftEdit: $('ftEdit'), ftGhost: $('ftGhost'),
     gap: $('gap'), gapVal: $('gapVal'), margin: $('margin'), marginVal: $('marginVal'),
     bgColor: $('bgColor'), bgTransparent: $('bgTransparent'),
     maxSize: $('maxSize'), format: $('format'), quality: $('quality'), qualityVal: $('qualityVal'),
@@ -423,7 +483,7 @@
     try {
       const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
       if (!s || typeof s !== 'object') return;
-      if (['h', 'v', 'rows', 'cols'].includes(s.layout)) state.layout = s.layout;
+      if (['h', 'v', 'rows', 'cols', 'free'].includes(s.layout)) state.layout = s.layout;
       if (Number.isInteger(s.perGroup) && s.perGroup >= 1 && s.perGroup <= 20) state.perGroup = s.perGroup;
       if (typeof s.equalize === 'boolean') state.equalize = s.equalize;
       if (['start', 'center', 'end'].includes(s.align)) state.align = s.align;
@@ -476,10 +536,11 @@
     };
     const [a, b] = inv(e.crop.u0, e.crop.v0);
     const [c, d] = inv(e.crop.u1, e.crop.v1);
-    const sx = Math.round(Math.min(a, c) * it.w), sx1 = Math.round(Math.max(a, c) * it.w);
-    const sy = Math.round(Math.min(b, d) * it.h), sy1 = Math.round(Math.max(b, d) * it.h);
-    const x = clamp(sx, 0, it.w - 1), y = clamp(sy, 0, it.h - 1);
-    return { sx: x, sy: y, sw: clamp(sx1 - x, 1, it.w - x), sh: clamp(sy1 - y, 1, it.h - y) };
+    // Größe selbst runden (nicht Anfang und Ende einzeln), damit z. B. 1:1 exakt quadratisch bleibt.
+    const x = clamp(Math.round(Math.min(a, c) * it.w), 0, it.w - 1);
+    const y = clamp(Math.round(Math.min(b, d) * it.h), 0, it.h - 1);
+    const w = Math.round(Math.abs(c - a) * it.w), h = Math.round(Math.abs(d - b) * it.h);
+    return { sx: x, sy: y, sw: clamp(w, 1, it.w - x), sh: clamp(h, 1, it.h - y) };
   }
 
   /** Endgültige Größe eines Fotos nach allen Bearbeitungen (in Originalpixeln). */
@@ -545,7 +606,7 @@
         const w = img.naturalWidth, h = img.naturalHeight;
         if (!w || !h) { URL.revokeObjectURL(url); resolve(null); return; }
         try {
-          resolve({ id: nextId++, name: file.name || 'Eingefügtes Bild', img, url, w, h, small: makeSmall(img, w, h), edit: newEdit() });
+          resolve({ id: nextId++, name: file.name || 'Eingefügtes Bild', img, url, w, h, small: makeSmall(img, w, h), edit: newEdit(), free: null });
         } catch {
           URL.revokeObjectURL(url); resolve(null);
         }
@@ -559,11 +620,17 @@
     const files = [...fileList].filter((f) => f.type.startsWith('image/') || /\.(jpe?g|png|gif|webp|bmp|avif|heic|heif)$/i.test(f.name));
     if (!files.length) return;
     const gen = loadGen;
-    setInfo('Lade Fotos …');
-    const loaded = await Promise.all(files.map(loadFile));
+    // Nacheinander laden: bei vielen großen Handyfotos sonst Speicherspitzen.
+    const loaded = [];
+    for (let i = 0; i < files.length; i++) {
+      setInfo(files.length > 1 ? `Lade Foto ${i + 1}/${files.length} …` : 'Lade Foto …');
+      loaded.push(await loadFile(files[i]));
+      if (gen !== loadGen) break;
+    }
     if (gen !== loadGen) { for (const it of loaded) if (it) URL.revokeObjectURL(it.url); return; }
     const failed = loaded.filter((x) => !x).length;
     for (const item of loaded) if (item) images.push(item);
+    if (state.layout === 'free') ensureFree(images);
     if (failed) notice = `${failed} Datei(en) konnten nicht gelesen werden (Format vom Browser nicht unterstützt?).`;
     renderThumbs();
     render();
@@ -574,6 +641,7 @@
     const i = images.findIndex((x) => x.id === id);
     if (i < 0) return;
     images.splice(i, 1); // URL bleibt gültig, damit "Rückgängig" das Foto zurückholen kann
+    if (selId === id) selId = null;
     renderThumbs();
     render();
     commit();
@@ -600,7 +668,6 @@
     const w = d.w * s, h = d.h * s;
     const x0 = (S - w) / 2, y0 = (S - h) / 2;
     ctx.imageSmoothingQuality = 'high';
-    if (e.angle) { ctx.fillStyle = state.bg; ctx.fillRect(x0, y0, w, h); }
     drawItem(ctx, it, e, x0, y0, x0 + w, y0 + h, true);
   }
 
@@ -683,12 +750,14 @@
         l.style.transform = s ? `translateY(${s}px)` : '';
       });
     };
+    const id = Number(li.dataset.id);
     const end = (ev) => {
       grip.removeEventListener('pointermove', move);
       grip.removeEventListener('pointerup', end);
       grip.removeEventListener('pointercancel', end);
       for (const l of lis) { l.style.transform = ''; l.classList.remove('dragging'); }
-      if (ev.type === 'pointerup' && to !== idx) moveImage(idx, to);
+      // Nur wenn sich die Liste während des Ziehens nicht geändert hat (z. B. Foto fertig geladen).
+      if (ev.type === 'pointerup' && to !== idx && images.length === lis.length && images[idx]?.id === id) moveImage(idx, to);
     };
     grip.addEventListener('pointermove', move);
     grip.addEventListener('pointerup', end);
@@ -710,8 +779,9 @@
     return groups;
   }
 
-  /** Liefert {W, H, rects:[{item,x,y,w,h}]} in Ausgabepixeln (rects in derselben Reihenfolge wie list). */
+  /** Liefert {W, H, origin, rects:[{item,x,y,w,h,rot?}]} in Ausgabepixeln (rects in derselben Reihenfolge wie list). */
   function computeLayout(list) {
+    if (state.layout === 'free') return computeFreeLayout(list);
     const swap = state.layout === 'v' || state.layout === 'cols';
     const sized = new Map(list.map((it) => [it, dims(it)]));
     const A = (it) => (swap ? sized.get(it).h : sized.get(it).w); // entlang Hauptachse
@@ -746,9 +816,77 @@
     return {
       W: swap ? totalB : totalA,
       H: swap ? totalA : totalB,
+      origin: { x: 0, y: 0 },
       rects: rects.map((r) => swap
         ? { item: r.item, x: r.b, y: r.a, w: r.lb, h: r.la }
         : { item: r.item, x: r.a, y: r.b, w: r.la, h: r.lb }),
+    };
+  }
+
+  // ---------- Freier Modus: jedes Foto mit eigener Lage, Größe und Drehung ----------
+
+  const normAngle = (a) => Math.round(((((a + 180) % 360) + 360) % 360 - 180) * 100) / 100;
+
+  /** Größe (w,h) und achsparallele Hülle (bw,bh) eines Fotos im freien Modus. */
+  function freeBox(it) {
+    const d = dims(it), f = it.free;
+    const w = d.w * f.s, h = d.h * f.s;
+    const t = f.a * Math.PI / 180, c = Math.abs(Math.cos(t)), si = Math.abs(Math.sin(t));
+    return { w, h, bw: w * c + h * si, bh: w * si + h * c };
+  }
+
+  /** Fotos ohne Lage rechts neben die vorhandenen legen (Originalgröße). */
+  function ensureFree(list) {
+    const missing = list.filter((i) => !i.free);
+    if (!missing.length) return;
+    let maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const it of list) {
+      if (!it.free) continue;
+      const b = freeBox(it);
+      maxX = Math.max(maxX, it.free.cx + b.bw / 2);
+      minY = Math.min(minY, it.free.cy - b.bh / 2);
+      maxY = Math.max(maxY, it.free.cy + b.bh / 2);
+    }
+    const any = maxX > -Infinity;
+    let x = any ? maxX + state.gap : 0;
+    const cy = any ? (minY + maxY) / 2 : Math.max(...missing.map((i) => dims(i).h)) / 2;
+    for (const it of missing) {
+      const d = dims(it);
+      it.free = { cx: x + d.w / 2, cy, s: 1, a: 0 };
+      x += d.w + state.gap;
+    }
+  }
+
+  /** Freie Lagen aus einem normalen Layout übernehmen (Startpunkt fürs Ausrichten). */
+  function initFree(fromLayout) {
+    const saved = state.layout;
+    state.layout = fromLayout === 'free' ? 'h' : fromLayout;
+    const L = computeLayout(images);
+    state.layout = saved;
+    for (const r of L.rects) {
+      r.item.free = { cx: r.x + r.w / 2, cy: r.y + r.h / 2, s: r.w / dims(r.item).w, a: 0 };
+    }
+  }
+
+  function computeFreeLayout(list) {
+    ensureFree(list);
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    const boxes = list.map((it) => {
+      const b = freeBox(it);
+      minX = Math.min(minX, it.free.cx - b.bw / 2); maxX = Math.max(maxX, it.free.cx + b.bw / 2);
+      minY = Math.min(minY, it.free.cy - b.bh / 2); maxY = Math.max(maxY, it.free.cy + b.bh / 2);
+      return b;
+    });
+    // Ursprung auf ganze Pixel, damit ungedrehte Fotos in Originalgröße pixelgenau bleiben.
+    const ox = Math.floor(minX + 1e-6), oy = Math.floor(minY + 1e-6);
+    return {
+      W: Math.max(1, Math.ceil(maxX - 1e-6) - ox),
+      H: Math.max(1, Math.ceil(maxY - 1e-6) - oy),
+      origin: { x: ox, y: oy },
+      rects: list.map((it, i) => ({
+        item: it, x: it.free.cx - boxes[i].w / 2 - ox, y: it.free.cy - boxes[i].h / 2 - oy,
+        w: boxes[i].w, h: boxes[i].h, rot: it.free.a,
+      })),
     };
   }
 
@@ -763,7 +901,7 @@
   }
 
   /** Zeichnet die Collage. scale wirkt auf Bilder, Abstände und Rand. */
-  function draw(canvas, layout, scale, st = state, fast = false) {
+  function draw(canvas, layout, scale, st = state, fast = false, ghostItem = null) {
     const m = st.margin;
     const W = Math.max(1, Math.round((layout.W + 2 * m) * scale));
     const H = Math.max(1, Math.round((layout.H + 2 * m) * scale));
@@ -776,7 +914,22 @@
       ctx.fillStyle = st.bg;
       ctx.fillRect(0, 0, W, H);
     }
-    for (const r of layout.rects) {
+    // Durchscheinendes (ausgewähltes) Foto zuletzt zeichnen, damit es beim Ausrichten über den anderen liegt.
+    const order = ghostItem
+      ? [...layout.rects.filter((r) => r.item !== ghostItem), ...layout.rects.filter((r) => r.item === ghostItem)]
+      : layout.rects;
+    for (const r of order) {
+      ctx.globalAlpha = r.item === ghostItem ? 0.5 : 1;
+      if (r.rot) {
+        // Frei gedrehtes Foto (freier Modus): um seinen Mittelpunkt drehen.
+        const hw = r.w * scale / 2, hh = r.h * scale / 2;
+        ctx.save();
+        ctx.translate((r.x + m) * scale + hw, (r.y + m) * scale + hh);
+        ctx.rotate(r.rot * Math.PI / 180);
+        drawItem(ctx, r.item, r.item.edit, -hw, -hh, hw, hh, fast);
+        ctx.restore();
+        continue;
+      }
       // Kanten runden, damit benachbarte Bilder ohne Haarlinie aneinanderstoßen.
       const x0 = Math.round((r.x + m) * scale);
       const y0 = Math.round((r.y + m) * scale);
@@ -784,6 +937,7 @@
       const y1 = Math.max(y0 + 1, Math.round((r.y + r.h + m) * scale));
       drawItem(ctx, r.item, r.item.edit, x0, y0, x1, y1, fast);
     }
+    ctx.globalAlpha = 1;
   }
 
   // ---------- Rückgängig / Wiederholen ----------
@@ -792,8 +946,11 @@
   let hIndex = -1;
 
   function snapshot() {
-    const s = { items: images.slice(), edits: images.map((i) => cloneEdit(i.edit)), state: { ...state } };
-    s.key = JSON.stringify([s.items.map((i) => i.id), s.edits, s.state]);
+    const s = {
+      items: images.slice(), edits: images.map((i) => cloneEdit(i.edit)),
+      frees: images.map((i) => (i.free ? { ...i.free } : null)), state: { ...state },
+    };
+    s.key = JSON.stringify([s.items.map((i) => i.id), s.edits, s.frees, s.state]);
     return s;
   }
 
@@ -803,7 +960,13 @@
     if (hIndex >= 0 && history[hIndex].key === s.key) return;
     history = history.slice(0, hIndex + 1);
     history.push(s);
-    if (history.length > HISTORY_MAX) history.shift();
+    if (history.length > HISTORY_MAX) {
+      // Fotos, die nur noch im verworfenen Schritt vorkamen, endgültig freigeben.
+      const dropped = history.shift();
+      const live = new Set(images.map((i) => i.url));
+      for (const h of history) for (const i of h.items) live.add(i.url);
+      for (const i of dropped.items) if (!live.has(i.url)) URL.revokeObjectURL(i.url);
+    }
     hIndex = history.length - 1;
     saveSettings();
     updateUndo();
@@ -814,8 +977,9 @@
     hIndex = i;
     images.length = 0;
     images.push(...s.items);
-    s.items.forEach((it, j) => { it.edit = cloneEdit(s.edits[j]); });
+    s.items.forEach((it, j) => { it.edit = cloneEdit(s.edits[j]); it.free = s.frees[j] ? { ...s.frees[j] } : null; });
     Object.assign(state, s.state);
+    if (!selItem()) selId = null;
     syncInputs();
     renderThumbs();
     render();
@@ -833,8 +997,9 @@
 
   // ---------- Vorschau: Rendern, Zoom, Gesten ----------
 
-  const view = { z: 1, tx: 0, ty: 0, cssW: 1, cssH: 1, vpW: 1, vpH: 1, rendered: 0 };
-  /** Aktuelles Layout der Vorschau: {layout, fullW, fullH, outW, outH, margin, count} */
+  // lock: während ein Foto im freien Modus bewegt wird, bleibt der Maßstab fest (sonst "springt" die Vorschau).
+  const view = { z: 1, tx: 0, ty: 0, cssW: 1, cssH: 1, vpW: 1, vpH: 1, rendered: 0, lock: null };
+  /** Aktuelles Layout der Vorschau: {layout, fullW, fullH, outW, outH, margin, origin, count} */
   let cur = null;
 
   let rafId = 0;
@@ -866,7 +1031,7 @@
     const outW = Math.max(1, Math.round(fullW * outScale));
     const outH = Math.max(1, Math.round(fullH * outScale));
     if (!cur || cur.count !== images.length) view.z = 1; // bei neuen/entfernten Fotos wieder einpassen
-    cur = { layout, fullW, fullH, outW, outH, margin: state.margin, count: images.length };
+    cur = { layout, fullW, fullH, outW, outH, margin: state.margin, origin: layout.origin, count: images.length };
 
     sizeViewport();
     renderPreviewCanvas();
@@ -877,9 +1042,22 @@
     if (capped) msg += ' · auf Browser-Maximum verkleinert';
     if (notice) { setInfo(`${notice} · ${msg}`, true); notice = null; }
     else setInfo(msg, false);
+    updateFreeTools();
   }
 
   function sizeViewport() {
+    if (view.lock) {
+      // Maßstab festhalten; Ursprung der freien Koordinaten bleibt an derselben Bildschirmstelle.
+      const k = view.lock.k;
+      view.cssW = cur.fullW * k;
+      view.cssH = cur.fullH * k;
+      view.tx = view.lock.sx + (cur.origin.x - cur.margin) * k * view.z;
+      view.ty = view.lock.sy + (cur.origin.y - cur.margin) * k * view.z;
+      els.preview.style.width = view.cssW + 'px';
+      els.preview.style.height = view.cssH + 'px';
+      applyView();
+      return;
+    }
     const vp = els.viewport;
     const fs = els.previewPanel.classList.contains('fs');
     const vpW = vp.clientWidth || 1;
@@ -889,7 +1067,7 @@
       vpH = vp.clientHeight || 1;
     } else {
       const maxH = Math.min(window.innerHeight * (coarse ? 0.6 : 0.72), 900);
-      vpH = Math.max(120, Math.round(Math.min(maxH, vpW * cur.fullH / cur.fullW)));
+      vpH = Math.max(coarse ? 220 : 120, Math.round(Math.min(maxH, vpW * cur.fullH / cur.fullW)));
       vp.style.height = vpH + 'px';
     }
     const fit = Math.min(vpW / cur.fullW, vpH / cur.fullH);
@@ -905,7 +1083,13 @@
 
   /** Zoomstufe, bei der 1 Bildpixel = 1 Bildschirmpixel ist. */
   const zoom1 = () => (cur ? cur.outW / (view.cssW * (window.devicePixelRatio || 1)) : 1);
-  const maxZoom = () => Math.max(4, zoom1() * 4);
+  /** Höchste sinnvolle Zoomstufe: 4× über Originalpixel, aber nicht weit über die Vorschau-Auflösung hinaus. */
+  function maxZoom() {
+    if (!cur) return 4;
+    const cap = Math.min(PREVIEW_MAX_SIDE / Math.max(cur.fullW, cur.fullH), Math.sqrt(PREVIEW_MAX_PX / (cur.fullW * cur.fullH)));
+    const zCap = cap * cur.fullW / (view.cssW * (window.devicePixelRatio || 1));
+    return Math.max(4, Math.min(zoom1(), zCap) * 4);
+  }
 
   function clampView() {
     view.z = clamp(view.z, 1, maxZoom());
@@ -919,6 +1103,7 @@
     const pct = (view.z / zoom1()) * 100;
     els.zoomVal.textContent = (pct >= 10 ? Math.round(pct) : pct.toFixed(1).replace('.', ',')) + ' %';
     els.viewport.style.cursor = view.z > 1.001 ? 'grab' : 'default';
+    placeSelection();
   }
 
   function zoomAt(z, px, py) {
@@ -943,7 +1128,7 @@
 
   function renderPreviewCanvas() {
     const s = previewScale();
-    draw(els.preview, cur.layout, s, state, true);
+    draw(els.preview, cur.layout, s, state, true, ghost && state.layout === 'free' ? selItem() : null);
     view.rendered = s;
   }
 
@@ -952,6 +1137,7 @@
     clearTimeout(hiResTimer);
     hiResTimer = setTimeout(() => {
       if (!cur) return;
+      if (gest) { scheduleHiRes(); return; } // nicht mitten in einer Geste neu zeichnen
       const s = previewScale();
       if (s > view.rendered * 1.15 || s < view.rendered * 0.5) renderPreviewCanvas();
     }, 150);
@@ -964,8 +1150,79 @@
     if (clientX < r.left || clientX > r.right || clientY < r.top || clientY > r.bottom) return -1;
     const lx = (clientX - r.left) / r.width * cur.fullW - cur.margin;
     const ly = (clientY - r.top) / r.height * cur.fullH - cur.margin;
-    return cur.layout.rects.findIndex((q) => lx >= q.x && lx <= q.x + q.w && ly >= q.y && ly <= q.y + q.h);
+    // Von oben nach unten suchen (später gezeichnete Fotos liegen oben), Drehung berücksichtigen.
+    const rects = cur.layout.rects;
+    for (let i = rects.length - 1; i >= 0; i--) {
+      const q = rects[i];
+      let px = lx - (q.x + q.w / 2), py = ly - (q.y + q.h / 2);
+      if (q.rot) {
+        const t = -q.rot * Math.PI / 180, c = Math.cos(t), si = Math.sin(t);
+        [px, py] = [px * c - py * si, px * si + py * c];
+      }
+      if (Math.abs(px) <= q.w / 2 && Math.abs(py) <= q.h / 2) return i;
+    }
+    return -1;
   }
+
+  // ---- Auswahl im freien Modus ----
+  const selItem = () => (selId === null ? null : images.find((i) => i.id === selId) || null);
+
+  function select(id) {
+    if (selId === id) return;
+    selId = id;
+    if (ghost) render();
+    updateFreeTools();
+    placeSelection();
+  }
+
+  /** Freie Koordinate → Punkt im Vorschaufenster (CSS-Pixel). */
+  function freeToVp(fx, fy) {
+    const k = view.cssW / cur.fullW * view.z;
+    return { x: view.tx + (fx - cur.origin.x + cur.margin) * k, y: view.ty + (fy - cur.origin.y + cur.margin) * k };
+  }
+
+  function placeSelection() {
+    const it = selItem();
+    if (!cur || state.layout !== 'free' || !it || !it.free) { els.sel.classList.add('hidden'); return; }
+    const b = freeBox(it);
+    const k = view.cssW / cur.fullW * view.z;
+    const c = freeToVp(it.free.cx, it.free.cy);
+    Object.assign(els.sel.style, {
+      left: c.x - b.w * k / 2 + 'px', top: c.y - b.h * k / 2 + 'px',
+      width: b.w * k + 'px', height: b.h * k + 'px', transform: `rotate(${it.free.a}deg)`,
+    });
+    els.sel.classList.remove('hidden');
+  }
+
+  function updateFreeTools() {
+    const it = selItem();
+    const show = state.layout === 'free' && !!it && !!it.free && images.length > 0;
+    els.freeTools.classList.toggle('hidden', !show);
+    if (!show) return;
+    els.ftName.textContent = `${images.indexOf(it) + 1}. ${it.name}`;
+    els.ftSVal.textContent = `${(it.free.s * 100).toFixed(1).replace('.', ',')} %`;
+    els.ftAVal.textContent = `${it.free.a.toFixed(1).replace('.', ',')}°`;
+    els.ftGhost.checked = ghost;
+  }
+
+  /** Maßstab einfrieren, solange ein Foto bewegt wird. */
+  function startLock() {
+    if (!cur) return;
+    const k = view.cssW / cur.fullW;
+    view.lock = {
+      k,
+      sx: view.tx - (cur.origin.x - cur.margin) * k * view.z,
+      sy: view.ty - (cur.origin.y - cur.margin) * k * view.z,
+    };
+  }
+  function endLock() {
+    if (!view.lock) return;
+    view.lock = null;
+    render();
+  }
+  /** CSS-Pixel je Ausgabepixel bei aktuellem Zoom. */
+  const unitK = () => (view.lock ? view.lock.k : view.cssW / cur.fullW) * view.z;
+  const angleOf = (a, b) => Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
 
   function placeMark(el, idx) {
     if (idx < 0 || !cur || !cur.layout.rects[idx]) { el.classList.add('hidden'); return; }
@@ -980,14 +1237,32 @@
   const showMarks = (src, dst) => { placeMark(els.markSrc, src); placeMark(els.markDst, dst); };
   const hideMarks = () => showMarks(-1, -1);
 
-  function toggleFullscreen(on = !els.previewPanel.classList.contains('fs')) {
+  const FS_ON_ICON = els.fsBtn.innerHTML;
+  const FS_OFF_ICON = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+  let fsScrollY = 0;
+  function toggleFullscreen(on = !els.previewPanel.classList.contains('fs'), fromHistory = false) {
+    const isOn = els.previewPanel.classList.contains('fs');
+    if (on === isOn) return;
+    if (on) {
+      fsScrollY = window.scrollY;
+      // Zurück-Taste (Android) beendet das Vollbild statt die Seite zu verlassen
+      try { history.pushState({ fotoMergeFs: true }, ''); } catch { /* egal */ }
+    } else if (!fromHistory && history.state?.fotoMergeFs) {
+      history.back(); // löst popstate aus, das dann hier ankommt
+      return;
+    }
     els.previewPanel.classList.toggle('fs', on);
     document.body.classList.toggle('noscroll', on);
     els.fsBtn.title = on ? 'Vollbild beenden' : 'Vollbild';
     els.fsBtn.setAttribute('aria-label', els.fsBtn.title);
+    els.fsBtn.innerHTML = on ? FS_OFF_ICON : FS_ON_ICON;
     view.z = 1;
+    if (!on) window.scrollTo(0, fsScrollY);
     if (cur) render();
   }
+  window.addEventListener('popstate', () => {
+    if (els.previewPanel.classList.contains('fs')) toggleFullscreen(false, true);
+  });
 
   // Gesten: 1 Finger/Maus ziehen = verschieben (gezoomt) bzw. Seite scrollen (Touch) bzw. Fotos tauschen (Maus),
   // gedrückt halten + ziehen = Fotos tauschen (Touch), 2 Finger = zoomen, Tippen = bearbeiten, Doppeltipp = zoomen.
@@ -1005,28 +1280,55 @@
   els.viewport.addEventListener('pointerdown', (e) => {
     if (!cur || e.target.closest('.zoombar')) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
+    clearTimeout(tapTimer); // ein neuer Finger bricht ein wartendes "Tippen = Editor öffnen" ab
+    stopMomentum();
     els.viewport.setPointerCapture(e.pointerId);
     ptrs.set(e.pointerId, vpPoint(e));
+    const free = state.layout === 'free';
     if (ptrs.size === 2) {
       if (gest) clearTimeout(gest.lp);
       hideMarks();
       const [a, b] = [...ptrs.values()];
+      if (gest && (gest.type === 'fpending' || gest.type === 'fmove')) {
+        // Zweiter Finger auf ausgewähltem Foto: Foto drehen + zoomen + verschieben
+        gest = { type: 'ftransform', it: gest.it, d0: dist(a, b), ang0: angleOf(a, b), m0: mid(a, b), f0: { ...gest.it.free } };
+        return;
+      }
+      if (gest && gest.type === 'fhandle') return;
       gest = { type: 'pinch', d: dist(a, b), m: mid(a, b) };
       return;
     }
     if (ptrs.size > 2) return;
     const p = vpPoint(e);
+    const hit = hitIndex(e.clientX, e.clientY);
+    if (free) {
+      const it = selItem();
+      if (e.target.closest('.sel-handle') && it) {
+        startLock();
+        const c = freeToVp(it.free.cx, it.free.cy);
+        gest = { type: 'fhandle', id: e.pointerId, it, c, d0: dist(p, c), ang0: angleOf(c, p), f0: { ...it.free } };
+        return;
+      }
+      if (hit >= 0) {
+        const hitItem = images[hit];
+        select(hitItem.id);
+        startLock();
+        gest = { type: 'fpending', id: e.pointerId, it: hitItem, x0: p.x, y0: p.y, hit, f0: { ...hitItem.free } };
+        return;
+      }
+    }
     const g = {
       type: 'pending', id: e.pointerId, x0: p.x, y0: p.y, lx: p.x, ly: p.y, cy: e.clientY,
-      touch: e.pointerType !== 'mouse', hit: hitIndex(e.clientX, e.clientY), target: -1, lp: 0,
+      touch: e.pointerType !== 'mouse', hit, target: -1, lp: 0,
     };
     gest = g;
-    if (g.touch && g.hit >= 0 && images.length > 1) {
+    if (!free && g.touch && g.hit >= 0 && images.length > 1) {
       g.lp = setTimeout(() => {
         if (gest !== g || g.type !== 'pending') return;
         g.type = 'drag';
         navigator.vibrate?.(15);
         showMarks(g.hit, -1);
+        els.gestureHint.textContent = 'Jetzt auf ein anderes Foto ziehen – die beiden werden getauscht.';
       }, 450);
     }
   });
@@ -1049,14 +1351,46 @@
       g.d = d; g.m = m;
       return;
     }
+    if (g.type === 'ftransform') {
+      if (ptrs.size < 2) return;
+      const [a, b] = [...ptrs.values()];
+      const f = g.it.free, m = mid(a, b), k = unitK();
+      f.s = clamp(g.f0.s * dist(a, b) / g.d0, 0.02, 20);
+      f.a = normAngle(g.f0.a + normAngle(angleOf(a, b) - g.ang0));
+      f.cx = g.f0.cx + (m.x - g.m0.x) / k;
+      f.cy = g.f0.cy + (m.y - g.m0.y) / k;
+      render();
+      return;
+    }
     if (e.pointerId !== g.id) return;
+    if (g.type === 'fhandle') {
+      const f = g.it.free;
+      f.s = clamp(g.f0.s * dist(p, g.c) / g.d0, 0.02, 20);
+      let a = normAngle(g.f0.a + normAngle(angleOf(g.c, p) - g.ang0));
+      const snap = Math.round(a / 90) * 90;
+      if (!e.shiftKey && Math.abs(a - snap) < 2) a = normAngle(snap); // an 0°/90°/180° einrasten
+      f.a = a;
+      render();
+      return;
+    }
+    if (g.type === 'fpending' || g.type === 'fmove') {
+      if (g.type === 'fpending') {
+        if (Math.hypot(p.x - g.x0, p.y - g.y0) < 4) return;
+        g.type = 'fmove';
+      }
+      const k = unitK();
+      g.it.free.cx = g.f0.cx + (p.x - g.x0) / k;
+      g.it.free.cy = g.f0.cy + (p.y - g.y0) / k;
+      render();
+      return;
+    }
     const dx = p.x - g.lx, dy = p.y - g.ly, dcy = e.clientY - g.cy;
     g.lx = p.x; g.ly = p.y; g.cy = e.clientY;
     if (g.type === 'pending') {
       if (Math.hypot(p.x - g.x0, p.y - g.y0) < 8) return;
       clearTimeout(g.lp);
       if (view.z > 1.001) g.type = 'pan';
-      else if (g.touch) g.type = 'scroll';
+      else if (g.touch && !els.previewPanel.classList.contains('fs')) g.type = 'scroll';
       else if (g.hit >= 0 && images.length > 1) { g.type = 'drag'; showMarks(g.hit, -1); }
       else g.type = 'none';
     }
@@ -1065,6 +1399,9 @@
       clampView(); applyView();
     } else if (g.type === 'scroll') {
       window.scrollBy(0, -dcy);
+      const now = performance.now();
+      g.vy = dcy / Math.max(1, now - (g.t || now - 16)); // px/ms für Schwung
+      g.t = now;
     } else if (g.type === 'drag') {
       const t = hitIndex(e.clientX, e.clientY);
       g.target = t;
@@ -1078,26 +1415,63 @@
     if (!g) return;
     if (g.type === 'pinch') {
       if (ptrs.size === 0) gest = null;
+      else if (ptrs.size === 1) {
+        // Ein Finger bleibt liegen: einfach weiter verschieben
+        const [[id, p]] = ptrs;
+        gest = { type: view.z > 1.001 ? 'pan' : 'none', id, x0: p.x, y0: p.y, lx: p.x, ly: p.y, cy: 0, lp: 0, hit: -1, target: -1 };
+      }
       scheduleHiRes();
       return;
     }
+    if (g.type === 'ftransform') {
+      if (ptrs.size === 0) { gest = null; endLock(); commit(); }
+      return;
+    }
     if (e.pointerId !== g.id) return;
+    if (g.type === 'fhandle' || g.type === 'fmove' || g.type === 'fpending') {
+      gest = null;
+      endLock();
+      if (g.type !== 'fpending') commit();
+      else if (e.type === 'pointerup') handleTap(g, false);
+      return;
+    }
     clearTimeout(g.lp);
+    if (e.type === 'pointerup' && g.type === 'scroll' && Math.abs(g.vy || 0) > 0.2 && performance.now() - g.t < 80) {
+      startMomentum(g.vy);
+    }
     if (e.type === 'pointerup') {
-      if (g.type === 'pending') handleTap(g);
-      else if (g.type === 'drag' && g.target >= 0 && g.target !== g.hit) {
+      if (g.type === 'pending') handleTap(g, state.layout !== 'free');
+      else if (g.type === 'drag' && g.target >= 0 && g.target !== g.hit && images[g.hit] === cur?.layout.rects[g.hit]?.item) {
         const a = g.hit, b = g.target;
         [images[a], images[b]] = [images[b], images[a]];
         renderThumbs(); render(); commit();
       }
     }
     hideMarks();
+    if (g.type === 'drag') updateControls();
     gest = null;
   }
   els.viewport.addEventListener('pointerup', endPointer);
+  els.viewport.addEventListener('contextmenu', (e) => e.preventDefault());
+
+  // Schwung nach dem Scrollen durch die Vorschau (wie normales Scrollen am Handy)
+  let momentumRaf = 0;
+  function startMomentum(v) {
+    let vy = v, last = performance.now();
+    const step = (now) => {
+      const dt = now - last; last = now;
+      window.scrollBy(0, -vy * dt);
+      vy *= Math.pow(0.995, dt);
+      if (Math.abs(vy) > 0.02) momentumRaf = requestAnimationFrame(step);
+    };
+    momentumRaf = requestAnimationFrame(step);
+  }
+  function stopMomentum() { cancelAnimationFrame(momentumRaf); }
   els.viewport.addEventListener('pointercancel', endPointer);
 
-  function handleTap(g) {
+  /** Tippen: doppelt = zoomen; einfach = Editor öffnen (normal) bzw. Auswahl aufheben (frei, Hintergrund). */
+  function handleTap(g, openEd = true) {
+    if (state.layout === 'free' && g.hit < 0) select(null);
     const now = performance.now();
     if (lastTap && now - lastTap.t < 320 && Math.hypot(g.x0 - lastTap.x, g.y0 - lastTap.y) < 30) {
       clearTimeout(tapTimer);
@@ -1109,7 +1483,7 @@
     lastTap = { t: now, x: g.x0, y: g.y0 };
     const id = g.hit >= 0 ? images[g.hit]?.id : undefined;
     clearTimeout(tapTimer);
-    tapTimer = setTimeout(() => { lastTap = null; if (id !== undefined) openEditor(id); }, 320);
+    tapTimer = setTimeout(() => { lastTap = null; if (openEd && id !== undefined) openEditor(id); }, 320);
   }
 
   els.viewport.addEventListener('wheel', (e) => {
@@ -1134,12 +1508,16 @@
   function updateControls() {
     const grid = state.layout === 'rows' || state.layout === 'cols';
     const vertical = state.layout === 'v' || state.layout === 'cols';
+    const free = state.layout === 'free';
     els.perGroupField.classList.toggle('hidden', !grid);
+    els.freeField.classList.toggle('hidden', !free);
+    els.equalizeField.classList.toggle('hidden', free);
+    els.gapField.classList.toggle('hidden', free);
     els.perGroupLabel.textContent = state.layout === 'cols' ? 'Bilder pro Spalte' : 'Bilder pro Zeile';
     els.equalizeText.textContent = vertical
       ? 'Gleiche Breite angleichen (Bilder skalieren statt Originalpixel)'
       : 'Gleiche Höhe angleichen (Bilder skalieren statt Originalpixel)';
-    els.alignField.classList.toggle('hidden', state.equalize && groupsFor(images).length <= 1);
+    els.alignField.classList.toggle('hidden', free || (state.equalize && groupsFor(images).length <= 1));
     els.gapVal.textContent = state.gap;
     els.marginVal.textContent = state.margin;
     els.qualityVal.textContent = Math.round(state.quality * 100);
@@ -1147,7 +1525,11 @@
     els.bgColor.disabled = state.transparent && state.format !== 'image/jpeg';
     for (const b of els.layoutSeg.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === state.layout));
     for (const b of els.alignSeg.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === state.align));
-    els.gestureHint.textContent = coarse
+    els.gestureHint.textContent = free
+      ? (coarse
+        ? 'Foto antippen = auswählen · ziehen = verschieben · 2 Finger auf dem Foto = drehen & zoomen · 2 Finger daneben = Ansicht zoomen'
+        : 'Foto anklicken = auswählen · ziehen = verschieben · Griff ◢ = drehen & skalieren (Umschalt = frei) · Pfeiltasten = 1 px · Mausrad = Ansicht zoomen')
+      : coarse
       ? 'Antippen = Foto bearbeiten · Doppeltipp / zwei Finger = zoomen · gedrückt halten & ziehen = Fotos tauschen'
       : 'Klick = Foto bearbeiten · Doppelklick / Mausrad = zoomen · Ziehen = Fotos tauschen (gezoomt: verschieben)';
   }
@@ -1163,7 +1545,7 @@
     if (!it || exporting || els.editor.open) return;
     ed.it = it;
     ed.e = cloneEdit(it.edit);
-    ed.aspect = isCropped(ed.e.crop) ? 'free' : 'none';
+    ed.aspect = ed.e.ak && (ed.e.ak === 'free' || ASPECTS[ed.e.ak]) && isCropped(ed.e.crop) ? ed.e.ak : (isCropped(ed.e.crop) ? 'free' : 'none');
     els.edName.textContent = it.name;
     els.editor.showModal();
     syncEditorUI();
@@ -1172,6 +1554,7 @@
 
   function closeEditor(apply) {
     if (apply && ed.it && images.includes(ed.it)) {
+      if (isCropped(ed.e.crop) && ed.aspect !== 'none') ed.e.ak = ed.aspect; else delete ed.e.ak;
       ed.it.edit = ed.e;
       renderThumbs();
       render();
@@ -1328,11 +1711,42 @@
     drawEditor();
   }
 
-  // Ausschnitt mit Maus/Finger: Ecken ziehen = Größe, innen ziehen = verschieben.
+  /**
+   * Hineinzoomen = Ausschnitt verkleinern (Seitenverhältnis bleibt). Der Bildpunkt unter (ax,ay) bleibt
+   * unter den Fingern, die zur Stelle (bx,by) gewandert sind. Koordinaten normiert 0..1.
+   */
+  function zoomCrop(c0, f, ax, ay, bx, by) {
+    const w0 = c0.u1 - c0.u0, h0 = c0.v1 - c0.v0;
+    const minW = Math.max(16 / ed.css.w, 16 / ed.css.h * (w0 / h0));
+    let w = clamp(w0 * f, Math.min(minW, w0), 1), h = w * h0 / w0;
+    if (h > 1) { h = 1; w = h * w0 / h0; }
+    const rx = (ax - c0.u0) / w0, ry = (ay - c0.v0) / h0;
+    const u0 = clamp(bx - rx * w, 0, 1 - w), v0 = clamp(by - ry * h, 0, 1 - h);
+    ed.e.crop = { u0, v0, u1: u0 + w, v1: v0 + h };
+    if (ed.aspect === 'none' && isCropped(ed.e.crop)) { ed.aspect = 'free'; syncEditorUI(); }
+    if (!isCropped(ed.e.crop) && ed.aspect === 'free') { ed.aspect = 'none'; syncEditorUI(); }
+    drawEditor();
+  }
+
+  // Ausschnitt mit Maus/Finger: Ecken ziehen = Größe, innen ziehen = verschieben,
+  // zwei Finger auseinander/zusammen = hinein-/herauszoomen, Mausrad = zoomen.
+  const edPtrs = new Map();
+  const edPoint = (e) => {
+    const r = els.edStage.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  };
   els.edStage.addEventListener('pointerdown', (e) => {
     if (!ed.it) return;
-    const r = els.edStage.getBoundingClientRect();
-    const px = e.clientX - r.left, py = e.clientY - r.top;
+    edPtrs.set(e.pointerId, edPoint(e));
+    if (edPtrs.size === 2) {
+      const [a, b] = [...edPtrs.values()];
+      ed.drag = { mode: 'pinch', d0: dist(a, b), m0: mid(a, b), c0: { ...ed.e.crop } };
+      els.edStage.setPointerCapture(e.pointerId);
+      e.preventDefault();
+      return;
+    }
+    if (edPtrs.size > 2) return;
+    const { x: px, y: py } = edPoint(e);
     const c = ed.e.crop, W = ed.css.w, H = ed.css.h;
     const corners = [[c.u0, c.v0, c.u1, c.v1], [c.u1, c.v0, c.u0, c.v1], [c.u0, c.v1, c.u1, c.v0], [c.u1, c.v1, c.u0, c.v0]];
     const R = coarse ? 30 : 18;
@@ -1350,11 +1764,18 @@
   });
 
   els.edStage.addEventListener('pointermove', (e) => {
+    if (edPtrs.has(e.pointerId)) edPtrs.set(e.pointerId, edPoint(e));
     const g = ed.drag;
     if (!g || !ed.it) return;
-    const r = els.edStage.getBoundingClientRect();
-    const px = e.clientX - r.left, py = e.clientY - r.top;
     const W = ed.css.w, H = ed.css.h;
+    if (g.mode === 'pinch') {
+      if (edPtrs.size < 2) return;
+      const [a, b] = [...edPtrs.values()];
+      const m = mid(a, b);
+      zoomCrop(g.c0, g.d0 / dist(a, b), g.m0.x / W, g.m0.y / H, m.x / W, m.y / H);
+      return;
+    }
+    const { x: px, y: py } = edPoint(e);
     if (g.mode === 'move') {
       const c0 = g.c0, w = c0.u1 - c0.u0, h = c0.v1 - c0.v0;
       const u0 = clamp(c0.u0 + (px - g.x0) / W, 0, 1 - w), v0 = clamp(c0.v0 + (py - g.y0) / H, 0, 1 - h);
@@ -1363,7 +1784,10 @@
       if (ed.aspect === 'none') { ed.aspect = 'free'; syncEditorUI(); }
       const o = orientedSize();
       let nx = clamp(px / W, 0, 1), ny = clamp(py / H, 0, 1);
-      const sx = nx >= g.ax ? 1 : -1, sy = ny >= g.ay ? 1 : -1;
+      let sx = nx >= g.ax ? 1 : -1, sy = ny >= g.ay ? 1 : -1;
+      // Liegt die Gegenecke am Bildrand, nach innen wachsen (sonst schrumpft der Ausschnitt auf 1 px).
+      if ((sx > 0 ? 1 - g.ax : g.ax) * W < 20) sx = -sx;
+      if ((sy > 0 ? 1 - g.ay : g.ay) * H < 20) sy = -sy;
       let wp = Math.abs(nx - g.ax) * o.w, hp = Math.abs(ny - g.ay) * o.h; // in Originalpixeln
       const minPx = 20 * o.w / W; // mindestens ~20 CSS-Pixel
       const A = ASPECTS[ed.aspect];
@@ -1387,9 +1811,20 @@
     }
     drawEditor();
   });
-  const edEnd = () => { ed.drag = null; };
+  const edEnd = (e) => {
+    edPtrs.delete(e.pointerId);
+    if (ed.drag?.mode === 'pinch' && edPtrs.size > 0) return; // erst wenn alle Finger weg sind
+    ed.drag = null;
+  };
   els.edStage.addEventListener('pointerup', edEnd);
   els.edStage.addEventListener('pointercancel', edEnd);
+  els.edStage.addEventListener('wheel', (e) => {
+    if (!ed.it) return;
+    e.preventDefault();
+    const { x, y } = edPoint(e);
+    const nx = x / ed.css.w, ny = y / ed.css.h;
+    zoomCrop({ ...ed.e.crop }, Math.exp(e.deltaY * 0.0015), nx, ny, nx, ny);
+  }, { passive: false });
 
   els.edRotL.addEventListener('click', () => edRotate(false));
   els.edRotR.addEventListener('click', () => edRotate(true));
@@ -1406,7 +1841,7 @@
   els.edReset.addEventListener('click', () => { ed.e = newEdit(); ed.aspect = 'none'; syncEditorUI(); layoutEditor(); });
   els.edCancel.addEventListener('click', () => closeEditor(false));
   els.edApply.addEventListener('click', () => closeEditor(true));
-  els.editor.addEventListener('close', () => { ed.it = null; ed.drag = null; });
+  els.editor.addEventListener('close', () => { if (!els.editor.open) { ed.it = null; ed.drag = null; edPtrs.clear(); } });
 
   // ---------- Export ----------
 
@@ -1434,7 +1869,7 @@
         canvas.toBlob((blob) => {
           canvas.width = canvas.height = 0;
           if (!blob) { retry(scale, tries); return; }
-          finish(blob, scale < wanted - 1e-9);
+          finish(blob, scale < wanted - 1e-9 ? `${w} × ${h} px` : '');
         }, st.format, st.quality);
       } catch {
         canvas.width = canvas.height = 0;
@@ -1448,11 +1883,11 @@
         render();
         return;
       }
-      attempt(scale * 0.75, tries - 1);
+      setTimeout(() => attempt(scale * 0.75, tries - 1), 0); // Bildschirm zwischendurch aktualisieren lassen
     };
     const finish = (blob, reduced) => {
       exporting = false;
-      if (reduced) notice = 'Hinweis: Dieser Browser kann die volle Größe nicht erzeugen – das Bild wurde verkleinert.';
+      if (reduced) notice = `Hinweis: Dieser Browser kann die volle Größe nicht erzeugen – gespeichert wurden ${reduced}.`;
       render();
       // Manche Browser können kein WebP erzeugen und liefern PNG.
       const realExt = blob.type === st.format ? ext : (blob.type === 'image/png' ? 'png' : ext);
@@ -1473,7 +1908,8 @@
       }
       saveBlob(blob, name);
     };
-    attempt(wanted, 8);
+    // Erst "Erzeuge Bild …" anzeigen lassen, dann rechnen (sonst friert der Bildschirm ohne Rückmeldung).
+    requestAnimationFrame(() => setTimeout(() => attempt(wanted, 8), 0));
   }
 
   function saveBlob(blob, name) {
@@ -1538,8 +1974,44 @@
 
   els.layoutSeg.addEventListener('click', (e) => {
     const b = e.target.closest('button');
-    if (b) { state.layout = b.dataset.v; render(); commit(); }
+    if (!b) return;
+    const v = b.dataset.v;
+    if (v === 'free' && state.layout !== 'free' && images.some((i) => !i.free)) initFree(state.layout);
+    if (v !== 'free') select(null);
+    state.layout = v;
+    render();
+    commit();
   });
+  els.freeReset.addEventListener('click', () => { initFree('h'); render(); commit(); });
+
+  // Werkzeuge für das ausgewählte Foto (freier Modus)
+  const ftApply = (fn) => {
+    const it = selItem();
+    if (!it || !it.free) return;
+    fn(it.free);
+    render();
+    commit();
+  };
+  els.ftSMinus.addEventListener('click', () => ftApply((f) => { f.s = clamp(f.s / 1.01, 0.02, 20); }));
+  els.ftSPlus.addEventListener('click', () => ftApply((f) => { f.s = clamp(f.s * 1.01, 0.02, 20); }));
+  els.ftS1.addEventListener('click', () => ftApply((f) => { f.s = 1; }));
+  els.ftAMinus.addEventListener('click', () => ftApply((f) => { f.a = normAngle(f.a - 0.1); }));
+  els.ftAPlus.addEventListener('click', () => ftApply((f) => { f.a = normAngle(f.a + 0.1); }));
+  els.ftA0.addEventListener('click', () => ftApply((f) => { f.a = 0; }));
+  els.ftRotL.addEventListener('click', () => ftApply((f) => { f.a = normAngle(f.a - 90); }));
+  els.ftRotR.addEventListener('click', () => ftApply((f) => { f.a = normAngle(f.a + 90); }));
+  const restack = (front) => {
+    const it = selItem();
+    if (!it) return;
+    images.splice(images.indexOf(it), 1);
+    if (front) images.push(it); else images.unshift(it);
+    renderThumbs(); render(); commit();
+  };
+  els.ftFront.addEventListener('click', () => restack(true));
+  els.ftBack.addEventListener('click', () => restack(false));
+  els.ftEdit.addEventListener('click', () => { if (selId !== null) openEditor(selId); });
+  els.ftDeselect.addEventListener('click', () => select(null));
+  els.ftGhost.addEventListener('change', () => { ghost = els.ftGhost.checked; render(); });
   els.alignSeg.addEventListener('click', (e) => {
     const b = e.target.closest('button');
     if (b) { state.align = b.dataset.v; render(); commit(); }
@@ -1581,19 +2053,43 @@
     commit();
   });
 
+  let keyCommitTimer = 0;
   window.addEventListener('keydown', (e) => {
     if (els.editor.open) return;
     if (e.key === 'Escape' && els.previewPanel.classList.contains('fs')) { toggleFullscreen(false); return; }
     if (e.target.closest?.('input, select, textarea')) return;
+    const it = state.layout === 'free' ? selItem() : null;
+    if (it && it.free && e.key.startsWith('Arrow') && !e.ctrlKey && !e.metaKey) {
+      // Feinausrichtung: 1 Ausgabepixel (Umschalt: 10)
+      e.preventDefault();
+      const step = e.shiftKey ? 10 : 1;
+      if (e.key === 'ArrowLeft') it.free.cx -= step;
+      if (e.key === 'ArrowRight') it.free.cx += step;
+      if (e.key === 'ArrowUp') it.free.cy -= step;
+      if (e.key === 'ArrowDown') it.free.cy += step;
+      render();
+      clearTimeout(keyCommitTimer);
+      keyCommitTimer = setTimeout(commit, 400);
+      return;
+    }
+    if (e.key === 'Escape' && it) { select(null); return; }
     const mod = e.ctrlKey || e.metaKey;
     if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
     else if (mod && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) { e.preventDefault(); redo(); }
   });
 
+  // Android blendet beim Scrollen die Adressleiste ein/aus (Höhe ändert sich) – nur bei Breitenänderung neu aufbauen.
   let resizeTimer = 0;
+  let lastWidth = window.innerWidth;
   window.addEventListener('resize', () => {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => { render(); if (ed.it) layoutEditor(); }, 100);
+    resizeTimer = setTimeout(() => {
+      const fs = els.previewPanel.classList.contains('fs');
+      if (window.innerWidth === lastWidth && !fs) return;
+      lastWidth = window.innerWidth;
+      render();
+      if (ed.it) layoutEditor();
+    }, 100);
   });
 
   // Teilen-Knopf nur zeigen, wo das Teilen von Bilddateien unterstützt wird (v. a. Handys).
@@ -1609,7 +2105,8 @@
 
   // Für automatisierte Tests zugänglich machen (keine Auswirkung auf die Nutzung).
   window.__fotoMerge = {
-    state, images, view, computeLayout, fitScale, dims, cropToSource, render: doRender,
+    state, images, view, computeLayout, fitScale, dims, cropToSource, render: doRender, select, initFree,
+    get selId() { return selId; },
     openEditor, closeEditor, ed, undo, redo, zoomAt, get history() { return history; }, get hIndex() { return hIndex; },
   };
 
