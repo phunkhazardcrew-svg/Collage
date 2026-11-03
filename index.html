@@ -1,0 +1,647 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Foto-Merge</title>
+<style>
+  :root {
+    --bg: #f4f4f6; --panel: #ffffff; --text: #1d1d22; --muted: #6b6b76;
+    --border: #dcdce2; --accent: #3b6cf6; --accent-text: #ffffff; --danger: #d6455d;
+    --checker-a: #e6e6ea; --checker-b: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141418; --panel: #1e1e24; --text: #ececf1; --muted: #9a9aa6;
+      --border: #33333c; --accent: #6b8fff; --accent-text: #0d0d12; --danger: #ff6b81;
+      --checker-a: #2a2a31; --checker-b: #1e1e24;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  header { padding: 16px; border-bottom: 1px solid var(--border); background: var(--panel); }
+  header h1 { margin: 0; font-size: 1.25rem; }
+  header p { margin: 4px 0 0; color: var(--muted); font-size: .9rem; }
+  main {
+    display: grid; grid-template-columns: 340px 1fr; gap: 16px;
+    padding: 16px; max-width: 1600px; margin: 0 auto;
+  }
+  @media (max-width: 820px) { main { grid-template-columns: 1fr; } }
+  .panel {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px; min-width: 0;
+  }
+  .panel h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; }
+  .panel + .panel { margin-top: 16px; }
+  #drop {
+    border: 2px dashed var(--border); border-radius: 10px; padding: 18px; text-align: center;
+    cursor: pointer; color: var(--muted); transition: border-color .15s, background .15s;
+  }
+  #drop.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  #drop strong { color: var(--text); }
+  #fileInput { display: none; }
+  #thumbs { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  #thumbs li {
+    display: flex; align-items: center; gap: 8px; padding: 6px; border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  #thumbs img { width: 52px; height: 52px; object-fit: contain; background: var(--checker-a); border-radius: 4px; flex: none; }
+  #thumbs .meta { flex: 1; min-width: 0; font-size: .82rem; }
+  #thumbs .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #thumbs .dim { color: var(--muted); }
+  .icon-btn {
+    border: 1px solid var(--border); background: transparent; color: var(--text);
+    width: 30px; height: 30px; border-radius: 6px; cursor: pointer; font-size: 14px; flex: none;
+  }
+  .icon-btn:hover:not(:disabled) { border-color: var(--accent); }
+  .icon-btn:disabled { opacity: .35; cursor: default; }
+  .icon-btn.del:hover { border-color: var(--danger); color: var(--danger); }
+  .field { margin-bottom: 12px; }
+  .field > label, .field > .label { display: block; font-size: .85rem; margin-bottom: 4px; }
+  .seg { display: flex; flex-wrap: wrap; gap: 4px; }
+  .seg button {
+    flex: 1 1 auto; border: 1px solid var(--border); background: transparent; color: var(--text);
+    padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: .82rem;
+  }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  input[type="range"] { width: 100%; }
+  select, input[type="number"] {
+    width: 100%; padding: 6px; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--panel); color: var(--text); font: inherit;
+  }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .check { display: flex; gap: 8px; align-items: center; font-size: .85rem; margin-bottom: 12px; }
+  .hidden { display: none !important; }
+  .primary {
+    width: 100%; padding: 10px; border: 0; border-radius: 8px; background: var(--accent);
+    color: var(--accent-text); font: inherit; font-weight: 600; cursor: pointer;
+  }
+  .primary:disabled { opacity: .45; cursor: default; }
+  .secondary {
+    width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 8px; background: transparent;
+    color: var(--text); font: inherit; cursor: pointer; margin-top: 8px;
+  }
+  #previewWrap {
+    display: flex; align-items: center; justify-content: center; min-height: 300px;
+    border-radius: 8px; overflow: auto;
+    background-color: var(--checker-b);
+    background-image:
+      linear-gradient(45deg, var(--checker-a) 25%, transparent 25%),
+      linear-gradient(-45deg, var(--checker-a) 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, var(--checker-a) 75%),
+      linear-gradient(-45deg, transparent 75%, var(--checker-a) 75%);
+    background-size: 20px 20px; background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+  }
+  #preview { max-width: 100%; max-height: 75vh; display: block; box-shadow: 0 2px 12px rgba(0,0,0,.2); }
+  #empty { color: var(--muted); padding: 40px 16px; text-align: center; }
+  #info { margin-top: 10px; font-size: .85rem; color: var(--muted); }
+  #info.warn { color: var(--danger); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Foto-Merge</h1>
+  <p>Fotos zusammenfügen – ohne Zuschneiden. Alles läuft lokal im Browser, nichts wird hochgeladen.</p>
+</header>
+
+<main>
+  <section>
+    <div class="panel">
+      <h2>Fotos</h2>
+      <div id="drop" role="button" tabindex="0">
+        <strong>Fotos hier ablegen</strong><br>oder klicken zum Auswählen<br>
+        <small>(auch Einfügen mit Strg+V möglich)</small>
+      </div>
+      <input id="fileInput" type="file" accept="image/*" multiple>
+      <ul id="thumbs"></ul>
+    </div>
+
+    <div class="panel">
+      <h2>Anordnung</h2>
+      <div class="field">
+        <span class="label">Layout</span>
+        <div class="seg" id="layoutSeg">
+          <button type="button" data-v="h" aria-pressed="true">Nebeneinander</button>
+          <button type="button" data-v="v" aria-pressed="false">Untereinander</button>
+          <button type="button" data-v="rows" aria-pressed="false">Raster (Zeilen)</button>
+          <button type="button" data-v="cols" aria-pressed="false">Raster (Spalten)</button>
+        </div>
+      </div>
+
+      <div class="field hidden" id="perGroupField">
+        <label for="perGroup" id="perGroupLabel">Bilder pro Zeile</label>
+        <input id="perGroup" type="number" min="1" max="20" value="2">
+      </div>
+
+      <label class="check" id="equalizeLabel">
+        <input type="checkbox" id="equalize">
+        <span id="equalizeText">Gleiche Höhe angleichen (Bilder skalieren statt Originalpixel)</span>
+      </label>
+
+      <div class="field" id="alignField">
+        <span class="label">Ausrichtung</span>
+        <div class="seg" id="alignSeg">
+          <button type="button" data-v="start" aria-pressed="false">Anfang</button>
+          <button type="button" data-v="center" aria-pressed="true">Mitte</button>
+          <button type="button" data-v="end" aria-pressed="false">Ende</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="gap">Abstand zwischen Bildern: <span id="gapVal">0</span> px</label>
+        <input id="gap" type="range" min="0" max="200" value="0">
+      </div>
+      <div class="field">
+        <label for="margin">Rand außen: <span id="marginVal">0</span> px</label>
+        <input id="margin" type="range" min="0" max="300" value="0">
+      </div>
+      <div class="field">
+        <span class="label">Hintergrund</span>
+        <div class="row">
+          <input id="bgColor" type="color" value="#000000" aria-label="Hintergrundfarbe">
+          <label class="check" style="margin:0"><input type="checkbox" id="bgTransparent"> transparent (nur PNG)</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Export</h2>
+      <div class="field">
+        <label for="maxSize">Maximale Größe (längste Seite)</label>
+        <select id="maxSize">
+          <option value="0">Original (höchste Auflösung)</option>
+          <option value="8000">8000 px</option>
+          <option value="4000">4000 px</option>
+          <option value="2048">2048 px</option>
+          <option value="1080">1080 px</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="format">Format</label>
+        <select id="format">
+          <option value="image/jpeg">JPEG</option>
+          <option value="image/png">PNG (verlustfrei)</option>
+          <option value="image/webp">WebP</option>
+        </select>
+      </div>
+      <div class="field" id="qualityField">
+        <label for="quality">Qualität: <span id="qualityVal">95</span> %</label>
+        <input id="quality" type="range" min="50" max="100" value="95">
+      </div>
+      <button class="primary" id="downloadBtn" disabled>Bild herunterladen</button>
+      <button class="secondary" id="clearBtn">Alle Fotos entfernen</button>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Vorschau</h2>
+    <div id="previewWrap">
+      <div id="empty">Füge mindestens ein Foto hinzu, um die Vorschau zu sehen.</div>
+      <canvas id="preview" class="hidden"></canvas>
+    </div>
+    <div id="info"></div>
+  </section>
+</main>
+
+<script>
+(() => {
+  'use strict';
+
+  // Obergrenzen für Canvas. Desktop-Chrome/Firefox schaffen ~32767 px Kante bzw. ~268 MP;
+  // Safari/iOS weniger. Ob die Größe wirklich geht, wird beim Export geprüft (canvasUsable),
+  // notfalls wird schrittweise verkleinert.
+  const MAX_SIDE = 32767;
+  const MAX_PIXELS = 268_000_000;
+  const WEBP_MAX_SIDE = 16383;
+  const PREVIEW_MAX_SIDE = 1600;
+
+  /** @type {{id:number, name:string, img:HTMLImageElement, url:string, w:number, h:number}[]} */
+  const images = [];
+  let nextId = 1;
+
+  const state = {
+    layout: 'h',        // h | v | rows | cols
+    perGroup: 2,
+    equalize: false,    // false = Originalpixel, Leinwand wächst
+    align: 'center',    // start | center | end
+    gap: 0,
+    margin: 0,
+    bg: '#000000',
+    transparent: false,
+    maxSize: 0,
+    format: 'image/jpeg',
+    quality: 0.95,
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const els = {
+    drop: $('drop'), fileInput: $('fileInput'), thumbs: $('thumbs'),
+    layoutSeg: $('layoutSeg'), alignSeg: $('alignSeg'), alignField: $('alignField'),
+    perGroupField: $('perGroupField'), perGroup: $('perGroup'), perGroupLabel: $('perGroupLabel'),
+    equalize: $('equalize'), equalizeLabel: $('equalizeLabel'), equalizeText: $('equalizeText'),
+    gap: $('gap'), gapVal: $('gapVal'), margin: $('margin'), marginVal: $('marginVal'),
+    bgColor: $('bgColor'), bgTransparent: $('bgTransparent'),
+    maxSize: $('maxSize'), format: $('format'), quality: $('quality'), qualityVal: $('qualityVal'),
+    qualityField: $('qualityField'), downloadBtn: $('downloadBtn'), clearBtn: $('clearBtn'),
+    preview: $('preview'), empty: $('empty'), info: $('info'),
+  };
+
+  // ---------- Bilder laden ----------
+
+  function loadFile(file) {
+    return new Promise((resolve) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.decoding = 'async';
+      img.onload = () => {
+        if (!img.naturalWidth || !img.naturalHeight) {
+          URL.revokeObjectURL(url);
+          resolve(null);
+          return;
+        }
+        resolve({ id: nextId++, name: file.name || 'Eingefügtes Bild', img, url, w: img.naturalWidth, h: img.naturalHeight });
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+      img.src = url;
+    });
+  }
+
+  async function addFiles(fileList) {
+    const files = [...fileList].filter((f) => f.type.startsWith('image/') || /\.(jpe?g|png|gif|webp|bmp|avif|heic|heif)$/i.test(f.name));
+    if (!files.length) return;
+    const loaded = await Promise.all(files.map(loadFile));
+    const failed = loaded.filter((x) => !x).length;
+    for (const item of loaded) if (item) images.push(item);
+    renderThumbs();
+    render();
+    if (failed) setInfo(`${failed} Datei(en) konnten nicht gelesen werden (Format vom Browser nicht unterstützt?).`, true);
+  }
+
+  function removeImage(id) {
+    const i = images.findIndex((x) => x.id === id);
+    if (i < 0) return;
+    URL.revokeObjectURL(images[i].url);
+    images.splice(i, 1);
+    renderThumbs();
+    render();
+  }
+
+  function moveImage(id, dir) {
+    const i = images.findIndex((x) => x.id === id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= images.length) return;
+    [images[i], images[j]] = [images[j], images[i]];
+    renderThumbs();
+    render();
+  }
+
+  function renderThumbs() {
+    els.thumbs.replaceChildren(...images.map((it, idx) => {
+      const li = document.createElement('li');
+      const thumb = document.createElement('img');
+      thumb.src = it.url;
+      thumb.alt = '';
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      const name = document.createElement('div');
+      name.className = 'name';
+      name.textContent = `${idx + 1}. ${it.name}`;
+      name.title = it.name;
+      const dim = document.createElement('div');
+      dim.className = 'dim';
+      dim.textContent = `${it.w} × ${it.h} px`;
+      meta.append(name, dim);
+      const mk = (label, title, cls, disabled, fn) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'icon-btn' + (cls ? ' ' + cls : '');
+        b.textContent = label;
+        b.title = title;
+        b.setAttribute('aria-label', title);
+        b.disabled = disabled;
+        b.addEventListener('click', fn);
+        return b;
+      };
+      li.append(
+        thumb, meta,
+        mk('↑', 'Nach vorne', '', idx === 0, () => moveImage(it.id, -1)),
+        mk('↓', 'Nach hinten', '', idx === images.length - 1, () => moveImage(it.id, 1)),
+        mk('✕', 'Entfernen', 'del', false, () => removeImage(it.id)),
+      );
+      return li;
+    }));
+  }
+
+  // ---------- Layout-Berechnung ----------
+  //
+  // Wir rechnen immer in einem "Haupt-/Querachsen"-System:
+  //   Gruppe = eine Zeile (h, rows) bzw. eine Spalte (v, cols).
+  //   Entlang der Hauptachse liegen die Bilder einer Gruppe hintereinander,
+  //   Gruppen werden entlang der Querachse gestapelt.
+  // Für Spalten-Layouts werden Breite/Höhe vertauscht und am Ende zurückgetauscht.
+  // Jedes Bild wird nur gleichmäßig skaliert (Seitenverhältnis bleibt) – nie beschnitten.
+
+  function groupsFor(list) {
+    const n = (state.layout === 'rows' || state.layout === 'cols')
+      ? Math.max(1, Math.floor(state.perGroup) || 1)
+      : list.length;
+    const groups = [];
+    for (let i = 0; i < list.length; i += n) groups.push(list.slice(i, i + n));
+    return groups;
+  }
+
+  /**
+   * Liefert {W, H, rects:[{item,x,y,w,h}]} in Ausgabepixeln (ohne Skalierung durch maxSize).
+   * a = Hauptachse (Länge), b = Querachse (Dicke).
+   */
+  function computeLayout(list) {
+    const swap = state.layout === 'v' || state.layout === 'cols';
+    const A = (it) => (swap ? it.h : it.w); // Ausdehnung entlang Hauptachse
+    const B = (it) => (swap ? it.w : it.h); // Ausdehnung entlang Querachse
+    const gap = state.gap;
+    const groups = groupsFor(list);
+    const multi = groups.length > 1;
+
+    // Pro Gruppe: Bilder auf gemeinsame Dicke bringen (oder Originalgröße behalten).
+    const groupData = groups.map((g) => {
+      if (state.equalize) {
+        const thick = Math.max(...g.map(B));           // auf größte Dicke -> kein Detailverlust
+        const items = g.map((it) => ({ it, a: A(it) * thick / B(it), b: thick }));
+        const len = items.reduce((s, x) => s + x.a, 0) + gap * (g.length - 1);
+        return { items, len, thick };
+      }
+      const items = g.map((it) => ({ it, a: A(it), b: B(it) }));
+      const len = items.reduce((s, x) => s + x.a, 0) + gap * (g.length - 1);
+      return { items, len, thick: Math.max(...items.map((x) => x.b)) };
+    });
+
+    // Bei mehreren Gruppen + Angleichen: alle Gruppen auf gleiche Länge skalieren
+    // (bündiger Block ohne Lücken). Die Lücken selbst bleiben konstant.
+    if (state.equalize && multi) {
+      const target = Math.max(...groupData.map((g) => g.len));
+      for (const g of groupData) {
+        const gaps = gap * (g.items.length - 1);
+        const content = g.len - gaps;
+        const f = content > 0 ? (target - gaps) / content : 1;
+        for (const x of g.items) { x.a *= f; x.b *= f; }
+        g.thick *= f;
+        g.len = target;
+      }
+    }
+
+    const totalA = Math.max(...groupData.map((g) => g.len));
+    const totalB = groupData.reduce((s, g) => s + g.thick, 0) + gap * (groupData.length - 1);
+    const alignF = state.align === 'start' ? 0 : state.align === 'end' ? 1 : 0.5;
+
+    const rects = [];
+    let posB = 0;
+    for (const g of groupData) {
+      let posA = (totalA - g.len) * alignF; // nur relevant ohne Angleichen
+      for (const x of g.items) {
+        const offB = (g.thick - x.b) * alignF;
+        rects.push({ item: x.it, a: posA, b: posB + offB, la: x.a, lb: x.b });
+        posA += x.a + gap;
+      }
+      posB += g.thick + gap;
+    }
+
+    const W = swap ? totalB : totalA;
+    const H = swap ? totalA : totalB;
+    return {
+      W, H,
+      rects: rects.map((r) => swap
+        ? { item: r.item, x: r.b, y: r.a, w: r.lb, h: r.la }
+        : { item: r.item, x: r.a, y: r.b, w: r.la, h: r.lb }),
+    };
+  }
+
+  /** Berechnet den Skalierungsfaktor für eine Zielgröße und Browsergrenzen. */
+  function fitScale(W, H, maxSide) {
+    let s = 1;
+    if (maxSide > 0) s = Math.min(s, maxSide / Math.max(W, H));
+    const side = state.format === 'image/webp' ? WEBP_MAX_SIDE : MAX_SIDE;
+    s = Math.min(s, side / Math.max(W, H));
+    s = Math.min(s, Math.sqrt(MAX_PIXELS / (W * H)));
+    return s;
+  }
+
+  /** Zeichnet die Collage auf eine Canvas. scale wirkt auf Bilder, Abstände und Rand. */
+  function draw(canvas, layout, scale) {
+    const m = state.margin;
+    const W = Math.max(1, Math.round((layout.W + 2 * m) * scale));
+    const H = Math.max(1, Math.round((layout.H + 2 * m) * scale));
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.clearRect(0, 0, W, H);
+    if (!state.transparent || state.format === 'image/jpeg') {
+      ctx.fillStyle = state.bg;
+      ctx.fillRect(0, 0, W, H);
+    }
+    for (const r of layout.rects) {
+      // Kanten runden, damit benachbarte Bilder ohne Haarlinie aneinanderstoßen.
+      const x0 = Math.round((r.x + m) * scale);
+      const y0 = Math.round((r.y + m) * scale);
+      const x1 = Math.round((r.x + r.w + m) * scale);
+      const y1 = Math.round((r.y + r.h + m) * scale);
+      ctx.drawImage(r.item.img, x0, y0, Math.max(1, x1 - x0), Math.max(1, y1 - y0));
+    }
+    return { W, H };
+  }
+
+  // ---------- Rendern / UI ----------
+
+  let rafId = 0;
+  function render() {
+    cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(doRender);
+  }
+
+  function doRender() {
+    updateControls();
+    const has = images.length > 0;
+    els.preview.classList.toggle('hidden', !has);
+    els.empty.classList.toggle('hidden', has);
+    els.downloadBtn.disabled = !has;
+    if (!has) { setInfo(''); return; }
+
+    const layout = computeLayout(images);
+    const fullW = layout.W + 2 * state.margin;
+    const fullH = layout.H + 2 * state.margin;
+    const outScale = fitScale(fullW, fullH, state.maxSize);
+    const outW = Math.max(1, Math.round(fullW * outScale));
+    const outH = Math.max(1, Math.round(fullH * outScale));
+
+    // Vorschau in reduzierter Auflösung (schneller), Export später in voller Größe.
+    const prevScale = Math.min(outScale, PREVIEW_MAX_SIDE / Math.max(fullW, fullH));
+    draw(els.preview, layout, prevScale);
+
+    const capped = outScale < 1 && (state.maxSize === 0 || Math.max(fullW, fullH) * outScale < state.maxSize - 1);
+    let msg = `Ausgabe: ${outW} × ${outH} px · ${images.length} Foto(s)`;
+    if (capped) msg += ' · auf Browser-Maximum verkleinert';
+    setInfo(msg, false);
+  }
+
+  function setInfo(text, warn = false) {
+    els.info.textContent = text;
+    els.info.classList.toggle('warn', warn);
+  }
+
+  function updateControls() {
+    const grid = state.layout === 'rows' || state.layout === 'cols';
+    const vertical = state.layout === 'v' || state.layout === 'cols';
+    els.perGroupField.classList.toggle('hidden', !grid);
+    els.perGroupLabel.textContent = state.layout === 'cols' ? 'Bilder pro Spalte' : 'Bilder pro Zeile';
+    els.equalizeText.textContent = vertical
+      ? 'Gleiche Breite angleichen (Bilder skalieren statt Originalpixel)'
+      : 'Gleiche Höhe angleichen (Bilder skalieren statt Originalpixel)';
+    els.alignField.classList.toggle('hidden', state.equalize);
+    els.gapVal.textContent = state.gap;
+    els.marginVal.textContent = state.margin;
+    els.qualityVal.textContent = Math.round(state.quality * 100);
+    els.qualityField.classList.toggle('hidden', state.format === 'image/png');
+    els.bgColor.disabled = state.transparent && state.format !== 'image/jpeg';
+    for (const b of els.layoutSeg.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === state.layout));
+    for (const b of els.alignSeg.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === state.align));
+  }
+
+  // ---------- Export ----------
+
+  function download() {
+    if (!images.length) return;
+    const layout = computeLayout(images);
+    const fullW = layout.W + 2 * state.margin;
+    const fullH = layout.H + 2 * state.margin;
+    const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[state.format];
+    const wanted = fitScale(fullW, fullH, state.maxSize);
+    els.downloadBtn.disabled = true;
+    setInfo('Erzeuge Bild …');
+    // Größte vom Browser tatsächlich unterstützte Größe suchen (wichtig für iPhone/iPad).
+    const attempt = (scale, tries) => {
+      const canvas = document.createElement('canvas');
+      const w = Math.max(1, Math.round(fullW * scale));
+      const h = Math.max(1, Math.round(fullH * scale));
+      if (!canvasUsable(canvas, w, h)) return retry(scale, tries);
+      draw(canvas, layout, scale);
+      canvas.toBlob((blob) => {
+        if (!blob) { canvas.width = canvas.height = 0; retry(scale, tries); return; }
+        finish(blob, scale < wanted - 1e-9);
+      }, state.format, state.quality);
+    };
+    const retry = (scale, tries) => {
+      if (tries <= 0) {
+        els.downloadBtn.disabled = false;
+        setInfo('Export fehlgeschlagen – bitte kleinere Maximalgröße wählen.', true);
+        return;
+      }
+      attempt(scale * 0.75, tries - 1);
+    };
+    const finish = (blob, reduced) => {
+      els.downloadBtn.disabled = false;
+      render();
+      if (reduced) setTimeout(() => setInfo('Hinweis: Dieser Browser kann die volle Größe nicht erzeugen – das Bild wurde verkleinert.', true), 50);
+      // Manche Browser (z. B. ältere Safari) können kein WebP erzeugen und liefern PNG.
+      const realExt = blob.type === state.format ? ext : (blob.type === 'image/png' ? 'png' : ext);
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `foto-merge-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.${realExt}`;
+      document.body.append(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+    };
+    attempt(wanted, 8);
+  }
+
+  /** Prüft, ob der Browser eine Canvas dieser Größe wirklich anlegt (statt still zu scheitern). */
+  function canvasUsable(canvas, w, h) {
+    try {
+      canvas.width = w;
+      canvas.height = h;
+      if (canvas.width !== w || canvas.height !== h) return false;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return false;
+      ctx.fillStyle = '#ff0000';
+      ctx.fillRect(w - 1, h - 1, 1, 1);
+      const ok = ctx.getImageData(w - 1, h - 1, 1, 1).data[0] === 255;
+      ctx.clearRect(w - 1, h - 1, 1, 1);
+      if (!ok) { canvas.width = canvas.height = 0; }
+      return ok;
+    } catch {
+      canvas.width = canvas.height = 0;
+      return false;
+    }
+  }
+
+  // ---------- Events ----------
+
+  els.drop.addEventListener('click', () => els.fileInput.click());
+  els.drop.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); els.fileInput.click(); }
+  });
+  els.fileInput.addEventListener('change', () => {
+    addFiles(els.fileInput.files);
+    els.fileInput.value = '';
+  });
+  ['dragenter', 'dragover'].forEach((t) => els.drop.addEventListener(t, (e) => {
+    e.preventDefault(); els.drop.classList.add('over');
+  }));
+  ['dragleave', 'drop'].forEach((t) => els.drop.addEventListener(t, (e) => {
+    e.preventDefault(); els.drop.classList.remove('over');
+  }));
+  els.drop.addEventListener('drop', (e) => addFiles(e.dataTransfer.files));
+  // Dateien, die neben die Drop-Zone fallen, sollen nicht im Browser geöffnet werden.
+  window.addEventListener('dragover', (e) => e.preventDefault());
+  window.addEventListener('drop', (e) => {
+    e.preventDefault();
+    if (!els.drop.contains(e.target)) addFiles(e.dataTransfer.files);
+  });
+  window.addEventListener('paste', (e) => {
+    const files = [...(e.clipboardData?.items || [])]
+      .filter((i) => i.kind === 'file')
+      .map((i) => i.getAsFile())
+      .filter(Boolean);
+    if (files.length) addFiles(files);
+  });
+
+  els.layoutSeg.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (b) { state.layout = b.dataset.v; render(); }
+  });
+  els.alignSeg.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (b) { state.align = b.dataset.v; render(); }
+  });
+  els.perGroup.addEventListener('input', () => {
+    const v = parseInt(els.perGroup.value, 10);
+    if (v >= 1) { state.perGroup = Math.min(20, v); render(); }
+  });
+  els.equalize.addEventListener('change', () => { state.equalize = els.equalize.checked; render(); });
+  els.gap.addEventListener('input', () => { state.gap = +els.gap.value; render(); });
+  els.margin.addEventListener('input', () => { state.margin = +els.margin.value; render(); });
+  els.bgColor.addEventListener('input', () => { state.bg = els.bgColor.value; render(); });
+  els.bgTransparent.addEventListener('change', () => { state.transparent = els.bgTransparent.checked; render(); });
+  els.maxSize.addEventListener('change', () => { state.maxSize = +els.maxSize.value; render(); });
+  els.format.addEventListener('change', () => { state.format = els.format.value; render(); });
+  els.quality.addEventListener('input', () => { state.quality = +els.quality.value / 100; render(); });
+  els.downloadBtn.addEventListener('click', download);
+  els.clearBtn.addEventListener('click', () => {
+    for (const it of images) URL.revokeObjectURL(it.url);
+    images.length = 0;
+    renderThumbs();
+    render();
+  });
+
+  // Für automatisierte Tests zugänglich machen (keine Auswirkung auf die Nutzung).
+  window.__fotoMerge = { state, images, computeLayout, fitScale, render: doRender };
+
+  render();
+})();
+</script>
+</body>
+</html>
