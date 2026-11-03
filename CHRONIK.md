@@ -20,3 +20,11 @@
 - Export: try/catch + Canvas-Speicher freigeben; Dateiname in Ortszeit; Label „transparent (PNG/WebP)“; Eingabe >20 korrigiert;
   „Alle entfernen“ verwirft noch ladende Dateien; toter Code entfernt.
 - Alle Tests (eigene + Review-Skripte) grün, keine JS-Fehler.
+
+## 2026-11-03 – v1.2 (Handy / PWA)
+- Nutzer: Android, Installation über GitHub Pages (Repo ist bereits öffentlich).
+- Neu: `manifest.webmanifest`, `sw.js` (Netzwerk-zuerst, Offline-Fallback; bei Änderungen `VERSION` erhöhen), `icons/`.
+- „Teilen / in Galerie speichern …“-Button (Web Share API, nur wo unterstützt; Fallback Download).
+- Handy-Layout: Fotos → Vorschau → Anordnung → Export; Touch-Text in der Auswahlfläche.
+- Tests (Pixel-7-Emulation, http): keine Installability-Fehler, offline lauffähig, 4000×3000 + 3000×4000 → 7000×4000.
+- Offen: Nutzer muss GitHub Pages einmalig in den Repo-Einstellungen aktivieren (siehe README).

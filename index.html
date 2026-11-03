@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Foto-Merge</title>
+<meta name="description" content="Fotos zusammenfügen – ohne Zuschneiden, in Originalauflösung.">
+<meta name="theme-color" content="#141418">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <style>
   :root {
     --bg: #f4f4f6; --panel: #ffffff; --text: #1d1d22; --muted: #6b6b76;
@@ -29,7 +34,14 @@
     display: grid; grid-template-columns: 340px 1fr; gap: 16px;
     padding: 16px; max-width: 1600px; margin: 0 auto;
   }
-  @media (max-width: 820px) { main { grid-template-columns: 1fr; } }
+  /* Handy: Reihenfolge Fotos → Vorschau → Anordnung → Export */
+  @media (max-width: 820px) {
+    main { display: flex; flex-direction: column; }
+    main > .controls { display: contents; }
+    main .panel + .panel { margin-top: 0; }
+    #photosPanel { order: 1; } #previewPanel { order: 2; } #layoutPanel { order: 3; } #exportPanel { order: 4; }
+    #preview { max-height: 60vh; }
+  }
   .panel {
     background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
     padding: 14px; min-width: 0;
@@ -43,6 +55,8 @@
   #drop.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
   #drop strong { color: var(--text); }
   #fileInput { display: none; }
+  #drop .touch { display: none; }
+  @media (pointer: coarse) { #drop .touch { display: inline; } #drop .desk { display: none; } }
   #thumbs { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
   #thumbs li {
     display: flex; align-items: center; gap: 8px; padding: 6px; border: 1px solid var(--border);
@@ -108,18 +122,19 @@
 </header>
 
 <main>
-  <section>
-    <div class="panel">
+  <section class="controls">
+    <div class="panel" id="photosPanel">
       <h2>Fotos</h2>
       <div id="drop" role="button" tabindex="0">
-        <strong>Fotos hier ablegen</strong><br>oder klicken zum Auswählen<br>
-        <small>(auch Einfügen mit Strg+V möglich)</small>
+        <span class="desk"><strong>Fotos hier ablegen</strong><br>oder klicken zum Auswählen<br>
+        <small>(auch Einfügen mit Strg+V möglich)</small></span>
+        <span class="touch"><strong>＋ Fotos auswählen</strong><br><small>aus Galerie oder Kamera</small></span>
       </div>
       <input id="fileInput" type="file" accept="image/*" multiple>
       <ul id="thumbs"></ul>
     </div>
 
-    <div class="panel">
+    <div class="panel" id="layoutPanel">
       <h2>Anordnung</h2>
       <div class="field">
         <span class="label">Layout</span>
@@ -167,7 +182,7 @@
       </div>
     </div>
 
-    <div class="panel">
+    <div class="panel" id="exportPanel">
       <h2>Export</h2>
       <div class="field">
         <label for="maxSize">Maximale Größe (längste Seite)</label>
@@ -192,11 +207,12 @@
         <input id="quality" type="range" min="50" max="100" value="95">
       </div>
       <button class="primary" id="downloadBtn" disabled>Bild herunterladen</button>
+      <button class="secondary hidden" id="shareBtn" disabled>Teilen / in Galerie speichern …</button>
       <button class="secondary" id="clearBtn">Alle Fotos entfernen</button>
     </div>
   </section>
 
-  <section class="panel">
+  <section class="panel" id="previewPanel">
     <h2>Vorschau</h2>
     <div id="previewWrap">
       <div id="empty">Füge mindestens ein Foto hinzu, um die Vorschau zu sehen.</div>
@@ -248,7 +264,7 @@
     gap: $('gap'), gapVal: $('gapVal'), margin: $('margin'), marginVal: $('marginVal'),
     bgColor: $('bgColor'), bgTransparent: $('bgTransparent'),
     maxSize: $('maxSize'), format: $('format'), quality: $('quality'), qualityVal: $('qualityVal'),
-    qualityField: $('qualityField'), downloadBtn: $('downloadBtn'), clearBtn: $('clearBtn'),
+    qualityField: $('qualityField'), downloadBtn: $('downloadBtn'), shareBtn: $('shareBtn'), clearBtn: $('clearBtn'),
     preview: $('preview'), empty: $('empty'), info: $('info'),
   };
 
@@ -457,6 +473,7 @@
     els.preview.classList.toggle('hidden', !has);
     els.empty.classList.toggle('hidden', has);
     els.downloadBtn.disabled = !has || exporting;
+    els.shareBtn.disabled = !has || exporting;
     if (!has) { setInfo(notice || '', !!notice); notice = null; return; }
 
     const layout = computeLayout(images);
@@ -502,7 +519,8 @@
 
   // ---------- Export ----------
 
-  function download() {
+  /** mode: 'save' = Datei herunterladen, 'share' = Teilen-Menü des Handys (Fallback: herunterladen). */
+  function download(mode = 'save') {
     if (!images.length || exporting) return;
     const st = { ...state }; // Einstellungen einfrieren, falls während des Exports geändert wird
     const layout = computeLayout(images);
@@ -512,6 +530,7 @@
     const wanted = fitScale(fullW, fullH, st.maxSize);
     exporting = true;
     els.downloadBtn.disabled = true;
+    els.shareBtn.disabled = true;
     setInfo('Erzeuge Bild …');
     // Größte vom Browser tatsächlich unterstützte Größe suchen (wichtig für iPhone/iPad).
     const attempt = (scale, tries) => {
@@ -546,16 +565,34 @@
       render();
       // Manche Browser (z. B. ältere Safari) können kein WebP erzeugen und liefern PNG.
       const realExt = blob.type === st.format ? ext : (blob.type === 'image/png' ? 'png' : ext);
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
       const d = new Date(), z = (n) => String(n).padStart(2, '0');
-      a.download = `foto-merge-${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}-${z(d.getHours())}-${z(d.getMinutes())}-${z(d.getSeconds())}.${realExt}`;
-      document.body.append(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+      const name = `foto-merge-${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}-${z(d.getHours())}-${z(d.getMinutes())}-${z(d.getSeconds())}.${realExt}`;
+      if (mode === 'share') {
+        const file = new File([blob], name, { type: blob.type });
+        if (navigator.canShare?.({ files: [file] })) {
+          navigator.share({ files: [file], title: 'Foto-Merge' }).catch((err) => {
+            if (err.name === 'AbortError') return; // Nutzer hat abgebrochen
+            // z. B. wenn das Erzeugen zu lange gedauert hat und der Browser das Teilen blockiert
+            saveBlob(blob, name);
+            notice = 'Teilen war nicht möglich – das Bild wurde stattdessen heruntergeladen.';
+            render();
+          });
+          return;
+        }
+      }
+      saveBlob(blob, name);
     };
     attempt(wanted, 8);
+  }
+
+  function saveBlob(blob, name) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
   }
 
   /** Prüft, ob der Browser eine Canvas dieser Größe wirklich anlegt (statt still zu scheitern). */
@@ -632,7 +669,18 @@
   els.maxSize.addEventListener('change', () => { state.maxSize = +els.maxSize.value; render(); });
   els.format.addEventListener('change', () => { state.format = els.format.value; render(); });
   els.quality.addEventListener('input', () => { state.quality = +els.quality.value / 100; render(); });
-  els.downloadBtn.addEventListener('click', download);
+  els.downloadBtn.addEventListener('click', () => download('save'));
+  els.shareBtn.addEventListener('click', () => download('share'));
+  // Teilen-Knopf nur zeigen, wo das Teilen von Bilddateien unterstützt wird (v. a. Handys).
+  try {
+    const probe = new File([new Uint8Array(1)], 'x.png', { type: 'image/png' });
+    if (navigator.canShare?.({ files: [probe] })) els.shareBtn.classList.remove('hidden');
+  } catch { /* kein Teilen verfügbar */ }
+
+  // Offline-Fähigkeit / Installierbarkeit (nur über http(s), nicht bei file://).
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  }
   els.clearBtn.addEventListener('click', () => {
     loadGen++;
     for (const it of images) URL.revokeObjectURL(it.url);

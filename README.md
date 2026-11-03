@@ -9,6 +9,23 @@ Eine einzelne HTML-Datei (`index.html`), die mehrere Fotos zu einem Bild zusamme
 3. Layout wählen, ggf. Reihenfolge mit ↑/↓ ändern.
 4. „Bild herunterladen“.
 
+## Auf dem Android-Handy installieren
+Die App läuft über **GitHub Pages** und ist eine installierbare Web-App (PWA): eigenes Symbol, Vollbild, offline nutzbar.
+
+**Einmalig GitHub Pages einschalten** (am PC oder im Handy-Browser):
+1. https://github.com/phunkhazardcrew-svg/Collage/settings/pages öffnen.
+2. *Build and deployment* → *Source*: **Deploy from a branch**.
+3. *Branch*: `claude/foto-merge-app-3x75rr` (bzw. `main`, falls vorhanden), Ordner **/ (root)** → **Save**.
+4. 1–2 Minuten warten. Adresse: **https://phunkhazardcrew-svg.github.io/Collage/**
+
+**Auf dem Handy:**
+1. Die Adresse oben in **Chrome** öffnen.
+2. Menü **⋮** → **„App installieren“** (bzw. „Zum Startbildschirm hinzufügen“) → **Installieren**.
+3. Fertig – „Foto-Merge“ erscheint als App-Symbol und funktioniert auch ohne Internet.
+
+Fertige Bilder landen über „Bild herunterladen“ im Ordner *Downloads* (in Google Fotos unter *Bibliothek → Download*),
+oder über „Teilen / in Galerie speichern …“ direkt in Google Fotos, WhatsApp usw.
+
 ## Prinzip
 - Standard: Jedes Foto bleibt in **Originalpixeln**; die Pixel addieren sich, die Leinwand wächst.
   Beispiel: 4000×3000 + 3000×4000 nebeneinander → 7000×4000 px.
