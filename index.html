@@ -201,6 +201,9 @@
   .seg button:disabled { opacity: .4; cursor: default; }
   #previewPanel.fs .layers, #previewPanel.fs .free-tools { max-height: 28vh; overflow: auto; flex: none; }
   #previewPanel.fs #viewport { min-height: 40vh; }
+  #previewPanel.fs { overflow: auto; }
+  #previewPanel.fs #gestureHint { display: none; }
+  .sel.small .sel-h::before { inset: -4px; }
 
   /* Editor */
   dialog#editor {
@@ -389,6 +392,25 @@
     <div id="freeTools" class="free-tools hidden">
       <div class="ft-head"><strong id="ftName"></strong>
         <button type="button" class="icon-btn" id="ftDeselect" title="Auswahl aufheben" aria-label="Auswahl aufheben">✕</button></div>
+      <div class="field">
+        <span class="label">Werkzeug (Pinsel = Teile weich verbergen / zurückholen)</span>
+        <div class="seg" id="ltTool">
+          <button type="button" data-t="move" aria-pressed="true">Bewegen</button>
+          <button type="button" data-t="hide" aria-pressed="false">🖌 Verbergen</button>
+          <button type="button" data-t="show" aria-pressed="false">🖌 Zurückholen</button>
+        </div>
+      </div>
+      <div id="ltBrush" class="hidden">
+        <div class="field">
+          <label for="ltSize">Pinselgröße: <span id="ltSizeVal">60</span> px</label>
+          <input id="ltSize" type="range" min="5" max="300" value="60">
+        </div>
+        <div class="field">
+          <label for="ltHard">Härte: <span id="ltHardVal">50</span> %</label>
+          <input id="ltHard" type="range" min="0" max="100" value="50">
+        </div>
+        <p class="hint" style="margin:0 0 8px">Ein Finger malt, zwei Finger zoomen/verschieben die Ansicht. Tipp: ⛶ Vollbild für mehr Platz.</p>
+      </div>
       <div class="ft-grid">
         <span>Größe</span>
         <button type="button" class="icon-btn" id="ftSMinus" aria-label="Kleiner">−</button>
@@ -438,25 +460,6 @@
         <div class="field">
           <label for="ltFe">Weiche Kante: <span id="ltFeVal">0</span> %</label>
           <input id="ltFe" type="range" min="0" max="50" value="0">
-        </div>
-        <div class="field">
-          <span class="label">Maske – Teile weich verbergen / zurückholen</span>
-          <div class="seg" id="ltTool">
-            <button type="button" data-t="move" aria-pressed="true">Bewegen</button>
-            <button type="button" data-t="hide" aria-pressed="false">🖌 Verbergen</button>
-            <button type="button" data-t="show" aria-pressed="false">🖌 Zurückholen</button>
-          </div>
-        </div>
-        <div id="ltBrush" class="hidden">
-          <div class="field">
-            <label for="ltSize">Pinselgröße: <span id="ltSizeVal">60</span> px</label>
-            <input id="ltSize" type="range" min="5" max="300" value="60">
-          </div>
-          <div class="field">
-            <label for="ltHard">Härte: <span id="ltHardVal">50</span> %</label>
-            <input id="ltHard" type="range" min="0" max="100" value="50">
-          </div>
-          <p class="hint" style="margin:0 0 8px">Ein Finger malt, zwei Finger zoomen/verschieben die Ansicht. Tipp: ⛶ Vollbild für mehr Platz.</p>
         </div>
         <div class="seg">
           <button type="button" id="ltInvert">Maske umkehren</button>
@@ -947,7 +950,7 @@
       const eye = btn(L.visible ? ICON_EYE : ICON_EYE_OFF, L.visible ? 'Ausblenden' : 'Einblenden', () => {
         L.visible = !L.visible; renderLayers(); render(); commit();
       });
-      const lock = btn(L.locked ? ICON_LOCK : ICON_UNLOCK, L.locked ? 'Entsperren' : 'Sperren (nicht mehr verschiebbar)', () => {
+      const lock = btn(L.locked ? ICON_LOCK : ICON_UNLOCK, L.locked ? 'Entsperren' : 'Sperren – Lage fest, Antippen wählt die Ebene darunter', () => {
         L.locked = !L.locked; renderLayers(); placeSelection(); updateFreeTools(); commit();
       });
       li.append(grip, th, meta, eye, lock);
@@ -1589,7 +1592,7 @@
     return Math.max(4, Math.min(zoom1(), zCap) * 4);
   }
 
-  const viewPad = () => (state.layout === 'free' ? 40 : 0);
+  const viewPad = () => (state.layout === 'free' ? (window.innerWidth < 400 ? 26 : 40) : 0);
 
   function clampView() {
     view.z = clamp(view.z, 1, maxZoom());
@@ -1675,6 +1678,7 @@
   function select(id) {
     if (selId === id) return;
     selId = id;
+    if (tool !== 'move') { tool = 'move'; updateToolUI(); } // Pinsel nicht versehentlich auf anderer Ebene
     if (ghost) render();
     updateFreeTools();
     placeSelection();
@@ -1694,7 +1698,7 @@
 
   function placeSelection() {
     const it = selItem();
-    if (!cur || state.layout !== 'free' || !it || !it.free) { els.sel.classList.add('hidden'); return; }
+    if (!cur || state.layout !== 'free' || !it || !it.free || !it.layer.visible) { els.sel.classList.add('hidden'); return; }
     const b = freeBox(it);
     const k = view.cssW / cur.fullW * view.z;
     const c = freeToVp(it.free.cx, it.free.cy);
@@ -1702,7 +1706,7 @@
       left: c.x - b.w * k / 2 + 'px', top: c.y - b.h * k / 2 + 'px',
       width: b.w * k + 'px', height: b.h * k + 'px', transform: `rotate(${it.free.a}deg)`,
     });
-    els.sel.classList.toggle('small', Math.min(b.w, b.h) * k < 80);
+    els.sel.classList.toggle('small', Math.min(b.w, b.h) * k < 56);
     els.sel.classList.toggle('locked', !!it.layer.locked);
     els.sel.classList.toggle('brush', tool !== 'move');
     els.sel.classList.remove('hidden');
@@ -1830,7 +1834,7 @@
       const ha = hitVp(a), hb = hitVp(b);
       // Erster Finger hatte evtl. schon ein Foto ein Stück verschoben – zurücksetzen.
       if (gest && gest.f0 && gest.it && (gest.type === 'fpending' || gest.type === 'fmove')) gest.it.free = { ...gest.f0 };
-      if (ha >= 0 && ha === hb) {
+      if (ha >= 0 && ha === hb && (!free || images[ha].id === selId)) {
         // Beide Finger auf DEMSELBEN Foto: nur dieses Foto größer/kleiner (und ggf. drehen)
         const it = images[ha];
         if (free) select(it.id);
@@ -1851,6 +1855,13 @@
     const hit = hitIndex(e.clientX, e.clientY);
     if (free) {
       const it = selItem();
+      if (tool !== 'move' && it && it.free && !it.layer.visible) {
+        // Pinsel auf ausgeblendeter Ebene: nichts tun (und nie die Ebene darunter verschieben)
+        notice = 'Die ausgewählte Ebene ist ausgeblendet – zum Malen erst einblenden (Auge).';
+        render();
+        gest = { type: 'none', id: e.pointerId, x0: p.x, y0: p.y, lx: p.x, ly: p.y, cy: e.clientY, lp: 0, hit: -1, target: -1 };
+        return;
+      }
       if (brushActive()) {
         // Pinsel: ein Finger malt in die Maske der ausgewählten Ebene
         const st = beginStroke(it);
@@ -1860,7 +1871,9 @@
         render();
         return;
       }
-      const hEl = e.target.closest('.sel-h'), rEl = e.target.closest('.sel-rot');
+      let hEl = e.target.closest('.sel-h');
+      const rEl = e.target.closest('.sel-rot');
+      if (hEl && els.sel.classList.contains('small') && hit >= 0 && images[hit].id === selId) hEl = null; // kleine Ebene: verschieben
       if ((hEl || rEl) && it && !it.layer.locked) {
         startLock();
         if (rEl) {
@@ -1878,7 +1891,8 @@
         };
         return;
       }
-      if (hit >= 0) {
+      // Hineingezoomt: nur die ausgewählte Ebene greifen, sonst verschiebt ein Finger die Ansicht.
+      if (hit >= 0 && (view.z <= 1.001 || images[hit].id === selId)) {
         const hitItem = images[hit];
         select(hitItem.id);
         startLock();
@@ -1993,8 +2007,10 @@
     }
     if (g.type === 'fpending' || g.type === 'fmove') {
       if (g.type === 'fpending') {
-        if (Math.hypot(p.x - g.x0, p.y - g.y0) < 4) return;
+        // Finger zittern beim Tippen – erst ab 10 px (Maus 4 px) verschieben, ohne Sprung
+        if (Math.hypot(p.x - g.x0, p.y - g.y0) < (e.pointerType === 'mouse' ? 4 : 10)) return;
         g.type = 'fmove';
+        g.x0 = p.x; g.y0 = p.y;
       }
       const k = unitK();
       g.it.free.cx = g.f0.cx + (p.x - g.x0) / k;
@@ -2094,7 +2110,7 @@
 
   /** Tippen: doppelt = zoomen; einfach = Editor öffnen (normal) bzw. Auswahl aufheben (frei, Hintergrund). */
   function handleTap(g, openEd = true) {
-    if (state.layout === 'free' && g.hit < 0) select(null);
+    if (state.layout === 'free') select(g.hit >= 0 && images[g.hit] ? images[g.hit].id : null);
     const now = performance.now();
     if (lastTap && now - lastTap.t < 320 && Math.hypot(g.x0 - lastTap.x, g.y0 - lastTap.y) < 30) {
       clearTimeout(tapTimer);
@@ -2153,7 +2169,7 @@
     for (const b of els.alignSeg.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === state.align));
     els.gestureHint.textContent = free
       ? (coarse
-        ? 'Foto antippen = auswählen · ziehen = verschieben · 2 Finger auf EINEM Foto = nur dieses größer/kleiner & drehen · Doppeltipp / +/− = Ansicht zoomen'
+        ? 'Foto antippen = auswählen · ziehen = verschieben · Punkte an Ecken = Größe, an Kanten = Breite/Höhe, ◯ oben = drehen · 2 Finger auf dem ausgewählten Foto = zoomen & drehen · Doppeltipp / +/− = Ansicht zoomen'
         : 'Foto anklicken = auswählen · ziehen = verschieben · Griff ◢ = drehen & skalieren (Umschalt = frei) · Pfeiltasten = 1 px · Mausrad = Ansicht zoomen')
       : coarse
       ? 'Zwei Finger auf EINEM Foto = nur dieses Foto größer/kleiner · Antippen = bearbeiten · Doppeltipp / +/− = Ansicht zoomen · gedrückt halten & ziehen = tauschen'
@@ -2625,7 +2641,7 @@
   // ---- Ebenen-Werkzeuge ----
   const brushActive = () => {
     const it = selItem();
-    return state.layout === 'free' && tool !== 'move' && !!it && !!it.free && it.layer.visible && !it.layer.locked;
+    return state.layout === 'free' && tool !== 'move' && !!it && !!it.free && it.layer.visible; // Sperre betrifft nur die Lage
   };
   function updateToolUI() {
     for (const b of els.ltTool.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.t === tool));
