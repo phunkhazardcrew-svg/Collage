@@ -849,6 +849,12 @@
   }
 
   function renderThumbs() {
+    if (state.layout === 'free') { // im Ebenen-Modus ersetzt das Ebenen-Panel die Fotoliste
+      els.thumbs.replaceChildren();
+      els.listHint.classList.add('hidden');
+      renderLayers();
+      return;
+    }
     els.thumbs.replaceChildren(...images.map((it, idx) => {
       const li = document.createElement('li');
       li.dataset.id = String(it.id);
@@ -1205,10 +1211,19 @@
   // Ebenen mit Maske/weicher Kante: in Kacheln über eine wiederverwendete Hilfs-Canvas (spart Handy-Speicher).
   const TILE = 2048;
   let scratch = null;
-  function getScratch() {
-    if (!scratch) {
-      scratch = document.createElement('canvas');
-      if (!canvasUsable(scratch, TILE, TILE)) { scratch = null; throw new Error('scratch'); }
+  let scratchFailed = false;
+  /** Hilfs-Canvas nur so groß wie nötig (große Hilfs-Canvas macht jedes Zeichnen langsamer). */
+  function getScratch(w, h) {
+    if (scratchFailed) return null;
+    const nw = Math.min(TILE, Math.ceil(w / 256) * 256), nh = Math.min(TILE, Math.ceil(h / 256) * 256);
+    if (scratch && scratch.width >= nw && scratch.height >= nh && scratch.width * scratch.height <= 4 * nw * nh) return scratch;
+    if (scratch) { scratch.width = scratch.height = 0; }
+    scratch = document.createElement('canvas');
+    if (!canvasUsable(scratch, nw, nh)) {
+      scratch = null;
+      scratchFailed = true;
+      notice = 'Zu wenig Speicher für Masken/weiche Kanten – sie werden vorübergehend ohne Effekt gezeigt.';
+      return null;
     }
     return scratch;
   }
@@ -1221,7 +1236,10 @@
     const ex = hw * c + hh * si, ey = hw * si + hh * c;
     const x0 = Math.max(0, Math.floor(cx - ex)), y0 = Math.max(0, Math.floor(cy - ey));
     const x1 = Math.min(cw, Math.ceil(cx + ex)), y1 = Math.min(ch, Math.ceil(cy + ey));
-    const sc = getScratch(), sctx = sc.getContext('2d');
+    if (x1 <= x0 || y1 <= y0) return;
+    const sc = getScratch(Math.min(TILE, x1 - x0), Math.min(TILE, y1 - y0));
+    if (!sc) { drawPlaced(ctx, r, scale, m, fast); return; } // Notlösung: ohne Maske zeichnen
+    const sctx = sc.getContext('2d');
     const maskSrc = L.mask ? { src: L.mask.canvas, rx: L.mask.rx, ry: L.mask.ry } : null;
     for (let ty = y0; ty < y1; ty += TILE) {
       for (let tx = x0; tx < x1; tx += TILE) {
@@ -1291,16 +1309,18 @@
     c.width = Math.max(1, Math.round(it.w * r));
     c.height = Math.max(1, Math.round(it.h * r));
     const x = c.getContext('2d');
+    if (!x) throw new Error('mask'); // Handy-Speicher erschöpft
     x.fillStyle = '#fff';
     x.fillRect(0, 0, c.width, c.height);
-    return { id: maskSeq++, canvas: c, ctx: x, rx: c.width / it.w, ry: c.height / it.h, ver: 0, log: [] };
+    return { id: maskSeq++, canvas: c, ctx: x, rx: c.width / it.w, ry: c.height / it.h, ver: 0, base: 0, log: [] };
   }
   function copyMask(m) {
     const c = document.createElement('canvas');
     c.width = m.canvas.width; c.height = m.canvas.height;
     const x = c.getContext('2d');
+    if (!x) throw new Error('mask');
     x.drawImage(m.canvas, 0, 0);
-    return { id: maskSeq++, canvas: c, ctx: x, rx: m.rx, ry: m.ry, ver: 0, log: [] };
+    return { id: maskSeq++, canvas: c, ctx: x, rx: m.rx, ry: m.ry, ver: 0, base: 0, log: [] };
   }
   function readAlpha(m, x, y, w, h) {
     const d = m.ctx.getImageData(x, y, w, h).data;
@@ -1320,24 +1340,53 @@
       t.a = cur;
     }
   }
+  // log[i] führt von Version base+i nach base+i+1 (und durch erneutes Tauschen zurück).
   function maskSetVersion(m, v) {
-    while (m.ver < v && m.ver < m.log.length) { swapPatch(m, m.log[m.ver]); m.ver++; }
-    while (m.ver > v) { m.ver--; swapPatch(m, m.log[m.ver]); }
+    while (m.ver < v && m.ver - m.base < m.log.length) { swapPatch(m, m.log[m.ver - m.base]); m.ver++; }
+    while (m.ver > v && m.ver > m.base) { m.ver--; swapPatch(m, m.log[m.ver - m.base]); }
   }
   function pushMaskPatch(m, patch) {
     if (!patch.length) return;
-    m.log.length = m.ver; // Wiederholen-Zweig verwerfen
+    m.log.length = m.ver - m.base; // Wiederholen-Zweig verwerfen
     m.log.push(patch);
     m.ver++;
+  }
+  const MASK_LOG_BUDGET = 96e6; // Bytes für Masken-Rückgängig insgesamt
+  const patchBytes = (patch) => patch.reduce((s, t) => s + t.a.length, 0);
+  /** Masken-Protokolle auf die Versionen kürzen, die Rückgängig/Wiederholen noch erreichen kann. */
+  function trimMaskLogs() {
+    for (;;) {
+      const range = new Map(); // Maske → [kleinste, größte] referenzierte Version
+      const note = (m, v) => {
+        const r = range.get(m);
+        if (r) { r[0] = Math.min(r[0], v); r[1] = Math.max(r[1], v); } else range.set(m, [v, v]);
+      };
+      for (const h of history) for (const x of h.masks) if (x) note(x.m, x.v);
+      for (const it of images) if (it.layer.mask) note(it.layer.mask, it.layer.mask.ver);
+      let total = 0;
+      for (const [m, [lo, hi]] of range) {
+        if (lo > m.base) { m.log.splice(0, lo - m.base); m.base = lo; }
+        if (m.log.length > hi - m.base) m.log.length = hi - m.base;
+        for (const pt of m.log) total += patchBytes(pt);
+      }
+      // Zu viel Speicher: älteste Schritte verwerfen (mindestens 10 bleiben).
+      if (total <= MASK_LOG_BUDGET || history.length <= 10 || hIndex <= 0) return;
+      history.shift();
+      hIndex--;
+    }
   }
 
   function beginStroke(it, mode = tool) {
     let created = false;
-    if (!it.layer.mask) { it.layer.mask = createMask(it); created = true; }
+    if (!it.layer.mask) {
+      if (mode === 'show') return null; // ohne Maske ist schon alles sichtbar
+      try { it.layer.mask = createMask(it); } catch { notice = 'Zu wenig Speicher für eine Maske.'; render(); return null; }
+      created = true;
+    }
     const m = it.layer.mask;
     const mat = new DOMMatrix().scaleSelf(m.rx, m.ry).multiplySelf(layerMatrix(it).inverse());
     const k = view.cssW / cur.fullW * view.z;
-    return { it, m, mat, mode, created, tiles: new Map(), R: brush.size / 2 / k };
+    return { it, m, mat, mode, created, tiles: new Map(), R: brush.size / 2 / k, n: 0 };
   }
   function captureTiles(st, x0, y0, x1, y1) {
     const m = st.m, W = m.canvas.width, H = m.canvas.height;
@@ -1353,6 +1402,7 @@
     }
   }
   function stamp(st, p) {
+    st.n++;
     const R = st.R, mat = st.mat;
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const [dx, dy] of [[-R, -R], [R, -R], [-R, R], [R, R]]) {
@@ -1382,10 +1432,15 @@
     for (let i = 1; i <= n; i++) stamp(st, { x: a.x + (b.x - a.x) * i / n, y: a.y + (b.y - a.y) * i / n });
   }
   function finishStroke(st) {
+    if (!st.tiles.size) { // Strich lag ganz außerhalb der Ebene
+      if (st.created) st.it.layer.mask = null;
+      render();
+      return;
+    }
     pushMaskPatch(st.m, [...st.tiles.values()]);
     render();
     commit();
-    renderLayers();
+    if (st.created) renderLayers(); // nur die Zeile "Maske" ändert sich
     updateFreeTools();
   }
   function cancelStroke(st) {
@@ -1394,6 +1449,7 @@
     render();
   }
   function invertMask(it) {
+    abortPaint();
     let created = false;
     if (!it.layer.mask) { it.layer.mask = createMask(it); created = true; }
     const m = it.layer.mask, w = m.canvas.width, h = m.canvas.height;
@@ -1412,8 +1468,10 @@
     const copy = {
       ...it, id: nextId++, edit: cloneEdit(it.edit),
       free: it.free ? { ...it.free, cx: it.free.cx + 20, cy: it.free.cy + 20 } : null,
-      layer: { ...it.layer, name: layerName(it) + ' Kopie', mask: it.layer.mask ? copyMask(it.layer.mask) : null },
+      layer: { ...it.layer, name: layerName(it) + ' Kopie', mask: null },
     };
+    try { if (it.layer.mask) copy.layer.mask = copyMask(it.layer.mask); }
+    catch { notice = 'Zu wenig Speicher – die Kopie wurde ohne Maske angelegt.'; }
     images.splice(idx + 1, 0, copy);
     selId = copy.id;
     renderThumbs(); render(); commit(); updateFreeTools();
@@ -1461,11 +1519,18 @@
       for (const i of dropped.items) if (!live.has(i.url)) URL.revokeObjectURL(i.url);
     }
     hIndex = history.length - 1;
+    trimMaskLogs();
     saveSettings();
     updateUndo();
   }
 
+  /** Laufenden Pinselstrich verwerfen (vor Rückgängig & Co., sonst passt die Maske nicht mehr zur Historie). */
+  function abortPaint() {
+    if (gest && gest.type === 'paint') { cancelStroke(gest.stroke); gest = null; }
+  }
+
   function restore(i) {
+    abortPaint();
     const s = history[i];
     hIndex = i;
     images.length = 0;
@@ -1682,7 +1747,7 @@
     if (ghost) render();
     updateFreeTools();
     placeSelection();
-    renderLayers();
+    for (const li of els.layerList.children) li.classList.toggle('cur', Number(li.dataset.id) === id);
   }
 
   /** Freie Koordinate → Punkt im Vorschaufenster (CSS-Pixel). */
@@ -1727,7 +1792,6 @@
     els.ltBlend.value = L.blend;
     els.ltFe.value = String(Math.round(L.feather * 100));
     els.ltFeVal.textContent = String(Math.round(L.feather * 100));
-    els.ltInvert.disabled = false;
     els.ltClearMask.disabled = !L.mask;
     els.ltUnstretch.disabled = !stretched;
     updateToolUI();
@@ -1812,7 +1876,7 @@
   const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
 
   els.viewport.addEventListener('pointerdown', (e) => {
-    if (!cur || e.target.closest('.zoombar')) return;
+    if (!cur) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     clearTimeout(tapTimer); // ein neuer Finger bricht ein wartendes "Tippen = Editor öffnen" ab
     stopMomentum();
@@ -1824,7 +1888,10 @@
       hideMarks();
       if (gest && (gest.type === 'fhandle' || gest.type === 'fresize')) return;
       const [a, b] = [...ptrs.values()];
-      if (gest && gest.type === 'paint') cancelStroke(gest.stroke); // zweiter Finger: Strich verwerfen
+      if (gest && gest.type === 'paint') {
+        // zweiter Finger: kurzer Tupfer = versehentlich (verwerfen), längerer Strich bleibt erhalten
+        if (gest.stroke.n < 6) cancelStroke(gest.stroke); else finishStroke(gest.stroke);
+      }
       if (brushActive() || (gest && gest.type === 'paint')) {
         // Pinselmodus: zwei Finger bewegen nur die Ansicht, nie die Ebene
         view.lock = null;
@@ -1865,6 +1932,7 @@
       if (brushActive()) {
         // Pinsel: ein Finger malt in die Maske der ausgewählten Ebene
         const st = beginStroke(it);
+        if (!st) { gest = { type: 'none', id: e.pointerId, x0: p.x, y0: p.y, lx: p.x, ly: p.y, cy: e.clientY, lp: 0, hit: -1, target: -1 }; return; }
         const fp = vpToFree(p);
         stamp(st, fp);
         gest = { type: 'paint', id: e.pointerId, stroke: st, last: fp };
@@ -2629,6 +2697,7 @@
     if (v === 'free' && state.layout !== 'free' && images.some((i) => !i.free)) initFree(state.layout);
     if (v !== 'free') select(null);
     state.layout = v;
+    renderThumbs();
     render();
     commit();
   });
@@ -2678,6 +2747,7 @@
   els.ltInvert.addEventListener('click', () => { const it = selItem(); if (it) invertMask(it); });
   els.ltClearMask.addEventListener('click', () => {
     const it = selItem(); if (!it || !it.layer.mask) return;
+    abortPaint();
     it.layer.mask = null; render(); commit(); renderLayers(); updateFreeTools();
   });
   els.ltUnstretch.addEventListener('click', () => ftApply((f) => { delete f.sx; delete f.sy; }));
@@ -2834,6 +2904,7 @@
     paint(id, pts, mode, R) {
       const it = images.find((i) => i.id === id);
       const st = beginStroke(it, mode);
+      if (!st) return;
       if (R) st.R = R;
       stamp(st, pts[0]);
       for (let i = 1; i < pts.length; i++) strokeTo(st, pts[i - 1], pts[i]);
