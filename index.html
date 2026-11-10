@@ -135,8 +135,8 @@
   .mark { position: absolute; pointer-events: none; border: 3px solid var(--accent); border-radius: 3px; }
   .mark.src { border-style: dashed; background: color-mix(in srgb, var(--accent) 20%, transparent); }
   .zoombar {
-    position: absolute; right: 8px; bottom: 8px; display: flex; align-items: center; gap: 2px;
-    background: rgba(0,0,0,.6); border-radius: 10px; padding: 3px; cursor: default;
+    display: flex; align-items: center; justify-content: center; gap: 2px; margin: 6px auto 0; width: fit-content;
+    background: rgba(0,0,0,.72); border-radius: 10px; padding: 3px; cursor: default;
   }
   .zoombar button {
     color: #fff; background: transparent; border: 0; min-width: 38px; height: 38px; border-radius: 8px;
@@ -165,6 +165,42 @@
   .ft-head strong { font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .ft-grid { display: grid; grid-template-columns: auto 38px 1fr 38px auto; gap: 6px; align-items: center; margin-bottom: 8px; font-size: .85rem; }
   .ft-val { text-align: center; font-variant-numeric: tabular-nums; }
+
+  /* Anfasser */
+  .sel-h { position: absolute; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%;
+    background: #fff; border: 2px solid var(--accent); pointer-events: auto; touch-action: none;
+    box-shadow: 0 1px 3px rgba(0,0,0,.45); }
+  .sel-h.edge { border-radius: 4px; }
+  .sel-h::before { content: ''; position: absolute; inset: -12px; }
+  .sel-rot { position: absolute; left: 50%; top: -42px; width: 24px; height: 24px; margin-left: -12px; border-radius: 50%;
+    background: var(--accent); border: 3px solid #fff; pointer-events: auto; touch-action: none; cursor: grab;
+    box-shadow: 0 1px 3px rgba(0,0,0,.45); }
+  .sel-rot::before { content: ''; position: absolute; inset: -12px; }
+  .sel-rot-line { position: absolute; left: 50%; top: -30px; height: 30px; border-left: 2px solid var(--accent); }
+  .sel.small .sel-h.edge { display: none; }
+  .sel.locked .sel-h, .sel.locked .sel-rot, .sel.locked .sel-rot-line,
+  .sel.brush .sel-h, .sel.brush .sel-rot, .sel.brush .sel-rot-line { display: none; }
+  .sel.locked { outline-style: dashed; }
+  .brush-cur { position: absolute; left: 0; top: 0; border-radius: 50%; pointer-events: none;
+    border: 1.5px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.7); }
+  /* Ebenen-Panel */
+  .layers { margin-top: 10px; }
+  #layerList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  #layerList li { display: flex; align-items: center; gap: 8px; padding: 5px; border: 1px solid var(--border);
+    border-radius: 8px; background: var(--panel); transition: transform .15s; }
+  #layerList li.cur { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  #layerList li.off .meta, #layerList li.off canvas { opacity: .4; }
+  #layerList li.dragging { transition: none; position: relative; z-index: 2; box-shadow: 0 6px 18px rgba(0,0,0,.25); }
+  #layerList canvas.th { width: 44px; height: 44px; flex: none; border-radius: 4px; background: var(--checker-a); cursor: pointer; }
+  #layerList .meta { flex: 1; min-width: 0; font-size: .82rem; cursor: pointer; }
+  #layerList .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #layerList .sub { color: var(--muted); font-size: .75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .icon-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; vertical-align: middle; }
+  @media (pointer: coarse) { #layerList .icon-btn { min-width: 42px; height: 42px; } }
+  .lt { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 10px; }
+  .seg button:disabled { opacity: .4; cursor: default; }
+  #previewPanel.fs .layers, #previewPanel.fs .free-tools { max-height: 28vh; overflow: auto; flex: none; }
+  #previewPanel.fs #viewport { min-height: 40vh; }
 
   /* Editor */
   dialog#editor {
@@ -221,7 +257,7 @@
           <button type="button" data-v="v" aria-pressed="false">Untereinander</button>
           <button type="button" data-v="rows" aria-pressed="false">Raster (Zeilen)</button>
           <button type="button" data-v="cols" aria-pressed="false">Raster (Spalten)</button>
-          <button type="button" data-v="free" aria-pressed="false">Frei (selbst ausrichten)</button>
+          <button type="button" data-v="free" aria-pressed="false">Frei / Ebenen (überlagern)</button>
         </div>
       </div>
 
@@ -231,9 +267,14 @@
       </div>
 
       <div class="field hidden" id="freeField">
-        <p class="hint" style="margin:0 0 8px">Foto in der Vorschau antippen = auswählen · ziehen = verschieben ·
-          zwei Finger auf dem Foto oder Griff ◢ = drehen &amp; zoomen. Die Leinwand wächst mit, nichts wird abgeschnitten.
-          Listen-Reihenfolge = Ebenen (unten → oben).</p>
+        <p class="hint" style="margin:0 0 8px">Fotos frei anordnen oder übereinanderlegen (Ebenen). Foto antippen = auswählen ·
+          ziehen = verschieben · Anfasser an Ecken = Größe, an Kanten = nur Breite/Höhe · runder Griff oben = drehen ·
+          zwei Finger auf dem Foto = zoomen &amp; drehen. Die Leinwand wächst mit, nichts wird abgeschnitten.</p>
+        <span class="label">Neue Fotos einfügen</span>
+        <div class="seg" id="placeSeg" style="margin-bottom:8px">
+          <button type="button" data-p="side" aria-pressed="true">daneben</button>
+          <button type="button" data-p="over" aria-pressed="false">darüber (überlagern)</button>
+        </div>
         <button type="button" class="secondary" id="freeReset" style="margin:0">Neu anordnen (nebeneinander)</button>
       </div>
 
@@ -314,21 +355,37 @@
       <canvas id="preview"></canvas>
       <div id="markSrc" class="mark src hidden"></div>
       <div id="markDst" class="mark hidden"></div>
-      <div id="sel" class="sel hidden"><div class="sel-handle" id="selHandle" title="Ziehen = drehen &amp; skalieren (Umschalt = ohne Einrasten)"></div></div>
-      <div class="zoombar">
-        <button type="button" id="zoomOut" title="Verkleinern" aria-label="Verkleinern">−</button>
-        <span id="zoomVal" title="Zoom bezogen auf Originalpixel">100 %</span>
-        <button type="button" id="zoomIn" title="Vergrößern" aria-label="Vergrößern">+</button>
-        <button type="button" id="zoom1" title="Originalpixel (100 %)" aria-label="Originalpixel">1:1</button>
-        <button type="button" id="zoomFit" title="Einpassen" aria-label="Einpassen">
-          <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
-        </button>
-        <button type="button" id="fsBtn" title="Vollbild" aria-label="Vollbild">
-          <svg viewBox="0 0 24 24"><path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"/><path d="M4 4l6 6M20 4l-6 6M4 20l6-6M20 20l-6-6"/></svg>
-        </button>
+      <div id="sel" class="sel hidden">
+        <div class="sel-rot-line"></div>
+        <div class="sel-rot" title="Drehen (rastet bei 0°/90° ein, Umschalt = frei)"></div>
+        <div class="sel-h" data-hx="-1" data-hy="-1" style="left:0;top:0;cursor:nwse-resize" title="Größe (proportional)"></div>
+        <div class="sel-h edge" data-hx="0" data-hy="-1" style="left:50%;top:0;cursor:ns-resize" title="Nur Höhe"></div>
+        <div class="sel-h" data-hx="1" data-hy="-1" style="left:100%;top:0;cursor:nesw-resize" title="Größe (proportional)"></div>
+        <div class="sel-h edge" data-hx="1" data-hy="0" style="left:100%;top:50%;cursor:ew-resize" title="Nur Breite"></div>
+        <div class="sel-h" data-hx="1" data-hy="1" style="left:100%;top:100%;cursor:nwse-resize" title="Größe (proportional)"></div>
+        <div class="sel-h edge" data-hx="0" data-hy="1" style="left:50%;top:100%;cursor:ns-resize" title="Nur Höhe"></div>
+        <div class="sel-h" data-hx="-1" data-hy="1" style="left:0;top:100%;cursor:nesw-resize" title="Größe (proportional)"></div>
+        <div class="sel-h edge" data-hx="-1" data-hy="0" style="left:0;top:50%;cursor:ew-resize" title="Nur Breite"></div>
       </div>
+      <div id="brushCur" class="brush-cur hidden"></div>
+    </div>
+    <div class="zoombar hidden" id="zoombar">
+      <button type="button" id="zoomOut" title="Verkleinern" aria-label="Verkleinern">−</button>
+      <span id="zoomVal" title="Zoom bezogen auf Originalpixel">100 %</span>
+      <button type="button" id="zoomIn" title="Vergrößern" aria-label="Vergrößern">+</button>
+      <button type="button" id="zoom1" title="Originalpixel (100 %)" aria-label="Originalpixel">1:1</button>
+      <button type="button" id="zoomFit" title="Einpassen" aria-label="Einpassen">
+        <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+      </button>
+      <button type="button" id="fsBtn" title="Vollbild" aria-label="Vollbild">
+        <svg viewBox="0 0 24 24"><path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"/><path d="M4 4l6 6M20 4l-6 6M4 20l6-6M20 20l-6-6"/></svg>
+      </button>
     </div>
     <div id="info"></div>
+    <div id="layers" class="layers hidden">
+      <div class="panel-head"><h2>Ebenen</h2><span class="hint" style="margin:0">oben = vorne · ≡ ziehen = sortieren</span></div>
+      <ul id="layerList"></ul>
+    </div>
     <div id="freeTools" class="free-tools hidden">
       <div class="ft-head"><strong id="ftName"></strong>
         <button type="button" class="icon-btn" id="ftDeselect" title="Auswahl aufheben" aria-label="Auswahl aufheben">✕</button></div>
@@ -352,6 +409,71 @@
         <button type="button" id="ftEdit">✎ Bearbeiten</button>
       </div>
       <label class="check" style="margin:8px 0 0"><input type="checkbox" id="ftGhost"> Ausgewähltes Foto durchscheinend obenauf (zum genauen Ausrichten, nur Vorschau)</label>
+      <div class="lt">
+        <div class="field">
+          <label for="ltOp">Deckkraft: <span id="ltOpVal">100</span> %</label>
+          <input id="ltOp" type="range" min="0" max="100" value="100">
+        </div>
+        <div class="field">
+          <label for="ltBlend">Mischmodus</label>
+          <select id="ltBlend">
+            <option value="source-over">Normal</option>
+            <option value="multiply">Multiplizieren</option>
+            <option value="screen">Negativ multiplizieren</option>
+            <option value="overlay">Ineinanderkopieren (Überlagern)</option>
+            <option value="soft-light">Weiches Licht</option>
+            <option value="hard-light">Hartes Licht</option>
+            <option value="darken">Abdunkeln</option>
+            <option value="lighten">Aufhellen</option>
+            <option value="color-dodge">Farbig abwedeln</option>
+            <option value="color-burn">Farbig nachbelichten</option>
+            <option value="difference">Differenz</option>
+            <option value="exclusion">Ausschluss</option>
+            <option value="hue">Farbton</option>
+            <option value="saturation">Sättigung</option>
+            <option value="color">Farbe</option>
+            <option value="luminosity">Luminanz</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="ltFe">Weiche Kante: <span id="ltFeVal">0</span> %</label>
+          <input id="ltFe" type="range" min="0" max="50" value="0">
+        </div>
+        <div class="field">
+          <span class="label">Maske – Teile weich verbergen / zurückholen</span>
+          <div class="seg" id="ltTool">
+            <button type="button" data-t="move" aria-pressed="true">Bewegen</button>
+            <button type="button" data-t="hide" aria-pressed="false">🖌 Verbergen</button>
+            <button type="button" data-t="show" aria-pressed="false">🖌 Zurückholen</button>
+          </div>
+        </div>
+        <div id="ltBrush" class="hidden">
+          <div class="field">
+            <label for="ltSize">Pinselgröße: <span id="ltSizeVal">60</span> px</label>
+            <input id="ltSize" type="range" min="5" max="300" value="60">
+          </div>
+          <div class="field">
+            <label for="ltHard">Härte: <span id="ltHardVal">50</span> %</label>
+            <input id="ltHard" type="range" min="0" max="100" value="50">
+          </div>
+          <p class="hint" style="margin:0 0 8px">Ein Finger malt, zwei Finger zoomen/verschieben die Ansicht. Tipp: ⛶ Vollbild für mehr Platz.</p>
+        </div>
+        <div class="seg">
+          <button type="button" id="ltInvert">Maske umkehren</button>
+          <button type="button" id="ltClearMask">Maske löschen</button>
+        </div>
+        <div class="seg" style="margin-top:6px">
+          <button type="button" id="ltUnstretch">Verzerrung aufheben</button>
+          <button type="button" id="ltFit">Auf Ebene darunter einpassen</button>
+        </div>
+        <div class="seg" style="margin-top:6px">
+          <button type="button" id="ltRename">Umbenennen</button>
+          <button type="button" id="ltDup">Duplizieren</button>
+          <button type="button" id="ltDel">Löschen</button>
+        </div>
+        <p class="hint">Mischmodi wirken nur auf darunterliegende Ebenen, nicht auf den Hintergrund.
+          Zwei Fotos mischen: obere Ebene „Auf Ebene darunter einpassen“, dann Deckkraft regeln.</p>
+      </div>
     </div>
     <p class="hint hidden" id="gestureHint"></p>
   </section>
@@ -463,6 +585,7 @@
     maxSize: 0,
     format: 'image/jpeg',
     quality: 0.95,
+    place: 'side',      // frei: neue Fotos daneben | darüber (überlagern)
   };
   const state = { ...DEFAULTS };
 
@@ -475,6 +598,11 @@
     gapField: $('gapField'), freeField: $('freeField'), freeReset: $('freeReset'), sel: $('sel'),
     freeTools: $('freeTools'), ftName: $('ftName'), ftDeselect: $('ftDeselect'), ftSMinus: $('ftSMinus'), ftSVal: $('ftSVal'),
     ftSPlus: $('ftSPlus'), ftS1: $('ftS1'), ftAMinus: $('ftAMinus'), ftAVal: $('ftAVal'), ftAPlus: $('ftAPlus'), ftA0: $('ftA0'),
+    placeSeg: $('placeSeg'), layers: $('layers'), layerList: $('layerList'), brushCur: $('brushCur'),
+    ltOp: $('ltOp'), ltOpVal: $('ltOpVal'), ltBlend: $('ltBlend'), ltFe: $('ltFe'), ltFeVal: $('ltFeVal'),
+    ltTool: $('ltTool'), ltBrush: $('ltBrush'), ltSize: $('ltSize'), ltSizeVal: $('ltSizeVal'), ltHard: $('ltHard'),
+    ltHardVal: $('ltHardVal'), ltInvert: $('ltInvert'), ltClearMask: $('ltClearMask'), ltUnstretch: $('ltUnstretch'),
+    ltFit: $('ltFit'), ltRename: $('ltRename'), ltDup: $('ltDup'), ltDel: $('ltDel'),
     ftRotL: $('ftRotL'), ftRotR: $('ftRotR'), ftFront: $('ftFront'), ftBack: $('ftBack'), ftEdit: $('ftEdit'), ftGhost: $('ftGhost'),
     gap: $('gap'), gapVal: $('gapVal'), margin: $('margin'), marginVal: $('marginVal'),
     bgColor: $('bgColor'), bgTransparent: $('bgTransparent'),
@@ -509,6 +637,7 @@
       if ([0, 8000, 4000, 2048, 1080].includes(s.maxSize)) state.maxSize = s.maxSize;
       if (['image/jpeg', 'image/png', 'image/webp'].includes(s.format)) state.format = s.format;
       if (Number.isFinite(s.quality) && s.quality >= 0.5 && s.quality <= 1) state.quality = s.quality;
+      if (['side', 'over'].includes(s.place)) state.place = s.place;
     } catch { /* Speicher nicht verfügbar – Standardwerte */ }
   }
 
@@ -536,6 +665,16 @@
   const cloneEdit = (e) => ({ ...e, crop: { ...e.crop } });
   const isCropped = (c) => c.u0 > 0 || c.v0 > 0 || c.u1 < 1 || c.v1 < 1;
   const scaleOf = (e) => e.scale ?? 1;
+
+  // Ebenen-Eigenschaften (wirken nur im Modus "Frei / Ebenen"). mask = null | Maske (siehe Masken-Abschnitt)
+  const newLayer = () => ({ name: null, opacity: 1, blend: 'source-over', visible: true, locked: false, feather: 0, mask: null });
+  const layerName = (it) => it.layer?.name || it.name;
+  const BLEND_NAMES = {
+    'source-over': 'Normal', multiply: 'Multiplizieren', screen: 'Negativ multipl.', overlay: 'Ineinanderkopieren',
+    'soft-light': 'Weiches Licht', 'hard-light': 'Hartes Licht', darken: 'Abdunkeln', lighten: 'Aufhellen',
+    'color-dodge': 'Farbig abwedeln', 'color-burn': 'Farbig nachbelichten', difference: 'Differenz',
+    exclusion: 'Ausschluss', hue: 'Farbton', saturation: 'Sättigung', color: 'Farbe', luminosity: 'Luminanz',
+  };
   const isEdited = (e) => !!(e.rot || e.angle || e.flipH || e.flipV || scaleOf(e) !== 1 || isCropped(e.crop));
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
@@ -581,9 +720,8 @@
    * Freie Drehung: das gedrehte Foto passt genau ins Rechteck, die Ecken bleiben Hintergrund.
    * fast = verkleinerte Kopie verwenden, wenn sie für die Zielgröße reicht (nur Vorschau).
    */
-  function drawItem(ctx, it, e, x0, y0, x1, y1, fast) {
-    const W = x1 - x0, H = y1 - y0;
-    if (W <= 0 || H <= 0) return;
+  /** Gemeinsame Geometrie: Quellrechteck und Zielgröße (in Ausrichtung des Originals) für ein W×H-Rechteck. */
+  function itemGeom(it, e, W, H) {
     const src = cropToSource(it, e);
     const odd = e.rot & 1;
     let bw = W, bh = H; // Größe des (90°-gedrehten) Ausschnitts vor der freien Drehung
@@ -592,9 +730,18 @@
       bw = (odd ? src.sh : src.sw) * s;
       bh = (odd ? src.sw : src.sh) * s;
     }
-    const dw = odd ? bh : bw, dh = odd ? bw : bh; // Zielgröße in Ausrichtung des Originals
+    return { src, dw: odd ? bh : bw, dh: odd ? bw : bh };
+  }
+
+  // srcOv = anderes Bild im Koordinatensystem des Originals (z. B. Maske), {src, rx, ry}
+  function drawItem(ctx, it, e, x0, y0, x1, y1, fast, srcOv = null) {
+    const W = x1 - x0, H = y1 - y0;
+    if (W <= 0 || H <= 0) return;
+    const { src, dw, dh } = itemGeom(it, e, W, H);
     let img = it.img, rx = 1, ry = 1;
-    if (fast && it.small.src !== it.img && dw / src.sw <= it.small.rx * 1.01) {
+    if (srcOv) {
+      img = srcOv.src; rx = srcOv.rx; ry = srcOv.ry;
+    } else if (fast && it.small.src !== it.img && dw / src.sw <= it.small.rx * 1.01) {
       img = it.small.src; rx = it.small.rx; ry = it.small.ry;
     }
     ctx.save();
@@ -629,7 +776,7 @@
         const w = img.naturalWidth, h = img.naturalHeight;
         if (!w || !h) { URL.revokeObjectURL(url); resolve(null); return; }
         try {
-          resolve({ id: nextId++, name: file.name || 'Eingefügtes Bild', img, url, w, h, small: makeSmall(img, w, h), edit: newEdit(), free: null });
+          resolve({ id: nextId++, name: file.name || 'Eingefügtes Bild', img, url, w, h, small: makeSmall(img, w, h), edit: newEdit(), free: null, layer: newLayer() });
         } catch {
           URL.revokeObjectURL(url); resolve(null);
         }
@@ -653,7 +800,11 @@
     if (gen !== loadGen) { for (const it of loaded) if (it) URL.revokeObjectURL(it.url); return; }
     const failed = loaded.filter((x) => !x).length;
     for (const item of loaded) if (item) images.push(item);
-    if (state.layout === 'free') ensureFree(images);
+    if (state.layout === 'free') {
+      ensureFree(images);
+      const last = [...loaded].reverse().find(Boolean);
+      if (last) selId = last.id; // neu eingefügtes Foto gleich auswählen
+    }
     if (failed) notice = `${failed} Datei(en) konnten nicht gelesen werden (Format vom Browser nicht unterstützt?).`;
     renderThumbs();
     render();
@@ -746,15 +897,71 @@
       return li;
     }));
     els.listHint.classList.toggle('hidden', images.length === 0);
+    renderLayers();
+  }
+
+  // ---------- Ebenen-Panel ----------
+  const ICON_EYE = '<svg viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+  const ICON_EYE_OFF = '<svg viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><path d="M3 3l18 18"/></svg>';
+  const ICON_LOCK = '<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
+  const ICON_UNLOCK = '<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg>';
+
+  function renderLayers() {
+    const show = state.layout === 'free' && images.length > 0;
+    els.layers.classList.toggle('hidden', !show);
+    if (!show) { els.layerList.replaceChildren(); return; }
+    const n = images.length;
+    els.layerList.replaceChildren(...images.slice().reverse().map((it, row) => {
+      const L = it.layer;
+      const li = document.createElement('li');
+      li.dataset.id = String(it.id);
+      li.className = (it.id === selId ? 'cur' : '') + (L.visible ? '' : ' off');
+      const btn = (html, title, fn, cls = '') => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'icon-btn ' + cls; b.innerHTML = html; b.title = title;
+        b.setAttribute('aria-label', title);
+        if (fn) b.addEventListener('click', fn);
+        return b;
+      };
+      const grip = btn('≡', 'Ziehen zum Sortieren', null, 'grip');
+      grip.addEventListener('pointerdown', (e) => startListDrag(e, li, row, els.layerList, (f, t) => moveImage(n - 1 - f, n - 1 - t)));
+      const th = document.createElement('canvas');
+      th.className = 'th';
+      drawThumb(th, it);
+      th.addEventListener('click', () => select(it.id));
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      const nm = document.createElement('div');
+      nm.className = 'name';
+      nm.textContent = layerName(it);
+      const sub = document.createElement('div');
+      sub.className = 'sub';
+      const bits = [];
+      if (L.opacity < 1) bits.push(`${Math.round(L.opacity * 100)} %`);
+      if (L.blend !== 'source-over') bits.push(BLEND_NAMES[L.blend] || L.blend);
+      if (L.mask) bits.push('Maske');
+      if (L.feather) bits.push('weiche Kante');
+      sub.textContent = bits.join(' · ') || 'Normal';
+      meta.append(nm, sub);
+      meta.addEventListener('click', () => select(it.id));
+      const eye = btn(L.visible ? ICON_EYE : ICON_EYE_OFF, L.visible ? 'Ausblenden' : 'Einblenden', () => {
+        L.visible = !L.visible; renderLayers(); render(); commit();
+      });
+      const lock = btn(L.locked ? ICON_LOCK : ICON_UNLOCK, L.locked ? 'Entsperren' : 'Sperren (nicht mehr verschiebbar)', () => {
+        L.locked = !L.locked; renderLayers(); placeSelection(); updateFreeTools(); commit();
+      });
+      li.append(grip, th, meta, eye, lock);
+      return li;
+    }));
   }
 
   /** Sortieren per Ziehen am ≡-Griff (Maus und Touch). */
-  function startListDrag(e, li, idx) {
+  function startListDrag(e, li, idx, listEl = els.thumbs, onMove = moveImage) {
     if (e.button > 0 || images.length < 2) return;
     e.preventDefault();
     const grip = e.currentTarget;
     grip.setPointerCapture(e.pointerId);
-    const lis = [...els.thumbs.children];
+    const lis = [...listEl.children];
     const rects = lis.map((l) => l.getBoundingClientRect());
     const step = rects[1].top - rects[0].top;
     const y0 = e.clientY;
@@ -781,7 +988,8 @@
       grip.removeEventListener('pointercancel', end);
       for (const l of lis) { l.style.transform = ''; l.classList.remove('dragging'); }
       // Nur wenn sich die Liste während des Ziehens nicht geändert hat (z. B. Foto fertig geladen).
-      if (ev.type === 'pointerup' && to !== idx && images.length === lis.length && images[idx]?.id === id) moveImage(idx, to);
+      const rowItem = listEl === els.thumbs ? images[idx] : images[images.length - 1 - idx];
+      if (ev.type === 'pointerup' && to !== idx && images.length === lis.length && rowItem?.id === id) onMove(idx, to);
     };
     grip.addEventListener('pointermove', move);
     grip.addEventListener('pointerup', end);
@@ -854,7 +1062,7 @@
   /** Größe (w,h) und achsparallele Hülle (bw,bh) eines Fotos im freien Modus. */
   function freeBox(it) {
     const d = sdims(it), f = it.free;
-    const w = d.w, h = d.h;
+    const w = d.w * (f.sx ?? 1), h = d.h * (f.sy ?? 1); // sx/sy = Verzerrung (Kanten-Anfasser)
     const t = f.a * Math.PI / 180, c = Math.abs(Math.cos(t)), si = Math.abs(Math.sin(t));
     return { w, h, bw: w * c + h * si, bh: w * si + h * c };
   }
@@ -863,10 +1071,11 @@
   function ensureFree(list) {
     const missing = list.filter((i) => !i.free);
     if (!missing.length) return;
-    let maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     for (const it of list) {
       if (!it.free) continue;
       const b = freeBox(it);
+      minX = Math.min(minX, it.free.cx - b.bw / 2);
       maxX = Math.max(maxX, it.free.cx + b.bw / 2);
       minY = Math.min(minY, it.free.cy - b.bh / 2);
       maxY = Math.max(maxY, it.free.cy + b.bh / 2);
@@ -876,6 +1085,10 @@
     const cy = any ? (minY + maxY) / 2 : Math.max(...missing.map((i) => sdims(i).h)) / 2;
     for (const it of missing) {
       const d = sdims(it);
+      if (any && state.place === 'over') {
+        it.free = { cx: (minX + maxX) / 2, cy, a: 0 }; // überlagern: mittig auf die vorhandenen Fotos
+        continue;
+      }
       it.free = { cx: x + d.w / 2, cy, a: 0 };
       x += d.w + state.gap;
     }
@@ -895,11 +1108,16 @@
 
   function computeFreeLayout(list) {
     ensureFree(list);
+    // Ausgeblendete Ebenen zählen nicht zur Leinwandgröße (außer alle sind ausgeblendet).
+    const isHidden = (it) => it.layer?.visible === false;
+    const anyVisible = list.some((it) => !isHidden(it));
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     const boxes = list.map((it) => {
       const b = freeBox(it);
-      minX = Math.min(minX, it.free.cx - b.bw / 2); maxX = Math.max(maxX, it.free.cx + b.bw / 2);
-      minY = Math.min(minY, it.free.cy - b.bh / 2); maxY = Math.max(maxY, it.free.cy + b.bh / 2);
+      if (!anyVisible || !isHidden(it)) {
+        minX = Math.min(minX, it.free.cx - b.bw / 2); maxX = Math.max(maxX, it.free.cx + b.bw / 2);
+        minY = Math.min(minY, it.free.cy - b.bh / 2); maxY = Math.max(maxY, it.free.cy + b.bh / 2);
+      }
       return b;
     });
     // Ursprung auf ganze Pixel, damit ungedrehte Fotos in Originalgröße pixelgenau bleiben.
@@ -910,7 +1128,7 @@
       origin: { x: ox, y: oy },
       rects: list.map((it, i) => ({
         item: it, x: it.free.cx - boxes[i].w / 2 - ox, y: it.free.cy - boxes[i].h / 2 - oy,
-        w: boxes[i].w, h: boxes[i].h, rot: it.free.a,
+        w: boxes[i].w, h: boxes[i].h, rot: it.free.a, sx: it.free.sx ?? 1, sy: it.free.sy ?? 1, hidden: isHidden(it),
       })),
     };
   }
@@ -935,34 +1153,278 @@
     const ctx = canvas.getContext('2d');
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    if (!st.transparent || st.format === 'image/jpeg') {
-      ctx.fillStyle = st.bg;
-      ctx.fillRect(0, 0, W, H);
-    }
+    const fx = st.layout === 'free'; // Ebenen-Effekte nur im Modus "Frei / Ebenen"
     // Durchscheinendes (ausgewähltes) Foto zuletzt zeichnen, damit es beim Ausrichten über den anderen liegt.
     const order = ghostItem
       ? [...layout.rects.filter((r) => r.item !== ghostItem), ...layout.rects.filter((r) => r.item === ghostItem)]
       : layout.rects;
     for (const r of order) {
-      ctx.globalAlpha = r.item === ghostItem ? 0.5 : 1;
-      if (r.rot) {
-        // Frei gedrehtes Foto (freier Modus): um seinen Mittelpunkt drehen.
-        const hw = r.w * scale / 2, hh = r.h * scale / 2;
-        ctx.save();
-        ctx.translate((r.x + m) * scale + hw, (r.y + m) * scale + hh);
-        ctx.rotate(r.rot * Math.PI / 180);
-        drawItem(ctx, r.item, r.item.edit, -hw, -hh, hw, hh, fast);
-        ctx.restore();
-        continue;
-      }
-      // Kanten runden, damit benachbarte Bilder ohne Haarlinie aneinanderstoßen.
-      const x0 = Math.round((r.x + m) * scale);
-      const y0 = Math.round((r.y + m) * scale);
-      const x1 = Math.max(x0 + 1, Math.round((r.x + r.w + m) * scale));
-      const y1 = Math.max(y0 + 1, Math.round((r.y + r.h + m) * scale));
-      drawItem(ctx, r.item, r.item.edit, x0, y0, x1, y1, fast);
+      const L = fx ? r.item.layer : null;
+      if (L && !L.visible) continue;
+      const isGhost = r.item === ghostItem;
+      ctx.globalAlpha = (L ? L.opacity : 1) * (isGhost ? 0.5 : 1);
+      ctx.globalCompositeOperation = L && !isGhost ? L.blend : 'source-over';
+      if (L && (L.mask || L.feather > 0)) drawMaskedLayer(ctx, r, L, scale, m, fast);
+      else drawPlaced(ctx, r, scale, m, fast);
     }
     ctx.globalAlpha = 1;
+    // Hintergrund zuletzt UNTER alles legen: so wirken Mischmodi nur auf darunterliegende Ebenen (wie Photoshop).
+    if (!st.transparent || st.format === 'image/jpeg') {
+      ctx.globalCompositeOperation = 'destination-over';
+      ctx.fillStyle = st.bg;
+      ctx.fillRect(0, 0, W, H);
+    }
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  /** Ein platziertes Foto zeichnen (gerundetes Rechteck = pixelgenau, sonst gedreht/verzerrt). */
+  function drawPlaced(ctx, r, scale, m, fast, srcOv = null) {
+    const sx = r.sx ?? 1, sy = r.sy ?? 1;
+    if (r.rot || sx !== 1 || sy !== 1) {
+      const hw = r.w * scale / 2, hh = r.h * scale / 2;
+      ctx.save();
+      ctx.translate((r.x + m) * scale + hw, (r.y + m) * scale + hh);
+      if (r.rot) ctx.rotate(r.rot * Math.PI / 180);
+      if (sx !== 1 || sy !== 1) ctx.scale(sx, sy);
+      const iw = hw / sx, ih = hh / sy;
+      drawItem(ctx, r.item, r.item.edit, -iw, -ih, iw, ih, fast, srcOv);
+      ctx.restore();
+      return;
+    }
+    // Kanten runden, damit benachbarte Bilder ohne Haarlinie aneinanderstoßen.
+    const x0 = Math.round((r.x + m) * scale);
+    const y0 = Math.round((r.y + m) * scale);
+    const x1 = Math.max(x0 + 1, Math.round((r.x + r.w + m) * scale));
+    const y1 = Math.max(y0 + 1, Math.round((r.y + r.h + m) * scale));
+    drawItem(ctx, r.item, r.item.edit, x0, y0, x1, y1, fast, srcOv);
+  }
+
+  // Ebenen mit Maske/weicher Kante: in Kacheln über eine wiederverwendete Hilfs-Canvas (spart Handy-Speicher).
+  const TILE = 2048;
+  let scratch = null;
+  function getScratch() {
+    if (!scratch) {
+      scratch = document.createElement('canvas');
+      if (!canvasUsable(scratch, TILE, TILE)) { scratch = null; throw new Error('scratch'); }
+    }
+    return scratch;
+  }
+
+  function drawMaskedLayer(ctx, r, L, scale, m, fast) {
+    const cw = ctx.canvas.width, ch = ctx.canvas.height;
+    const hw = r.w * scale / 2, hh = r.h * scale / 2;
+    const cx = (r.x + m) * scale + hw, cy = (r.y + m) * scale + hh;
+    const t = (r.rot || 0) * Math.PI / 180, c = Math.abs(Math.cos(t)), si = Math.abs(Math.sin(t));
+    const ex = hw * c + hh * si, ey = hw * si + hh * c;
+    const x0 = Math.max(0, Math.floor(cx - ex)), y0 = Math.max(0, Math.floor(cy - ey));
+    const x1 = Math.min(cw, Math.ceil(cx + ex)), y1 = Math.min(ch, Math.ceil(cy + ey));
+    const sc = getScratch(), sctx = sc.getContext('2d');
+    const maskSrc = L.mask ? { src: L.mask.canvas, rx: L.mask.rx, ry: L.mask.ry } : null;
+    for (let ty = y0; ty < y1; ty += TILE) {
+      for (let tx = x0; tx < x1; tx += TILE) {
+        const tw = Math.min(TILE, x1 - tx), th = Math.min(TILE, y1 - ty);
+        sctx.setTransform(1, 0, 0, 1, 0, 0);
+        sctx.globalCompositeOperation = 'source-over';
+        sctx.globalAlpha = 1;
+        sctx.clearRect(0, 0, tw, th);
+        sctx.setTransform(1, 0, 0, 1, -tx, -ty);
+        sctx.imageSmoothingEnabled = true;
+        sctx.imageSmoothingQuality = 'high';
+        drawPlaced(sctx, r, scale, m, fast);
+        if (maskSrc) {
+          sctx.globalCompositeOperation = 'destination-in';
+          drawPlaced(sctx, r, scale, m, false, maskSrc);
+        }
+        if (L.feather > 0) {
+          sctx.globalCompositeOperation = 'destination-in';
+          featherPass(sctx, cx, cy, hw, hh, r.rot || 0, L.feather);
+        }
+        sctx.globalCompositeOperation = 'source-over';
+        ctx.drawImage(sc, 0, 0, tw, th, tx, ty, tw, th);
+      }
+    }
+  }
+
+  /** Weiche Kante: Ränder per Verlauf ausblenden (Anteil der kürzeren Seite), dreht mit der Ebene. */
+  function featherPass(sctx, cx, cy, hw, hh, rotDeg, feather) {
+    const f = feather * 2 * Math.min(hw, hh);
+    sctx.save();
+    sctx.translate(cx, cy);
+    if (rotDeg) sctx.rotate(rotDeg * Math.PI / 180);
+    const p = Math.min(0.5, f / (2 * hw)), q = Math.min(0.5, f / (2 * hh));
+    const g1 = sctx.createLinearGradient(-hw, 0, hw, 0);
+    g1.addColorStop(0, 'rgba(0,0,0,0)'); g1.addColorStop(p, '#000'); g1.addColorStop(1 - p, '#000'); g1.addColorStop(1, 'rgba(0,0,0,0)');
+    sctx.fillStyle = g1;
+    sctx.fillRect(-hw, -hh, 2 * hw, 2 * hh);
+    const g2 = sctx.createLinearGradient(0, -hh, 0, hh);
+    g2.addColorStop(0, 'rgba(0,0,0,0)'); g2.addColorStop(q, '#000'); g2.addColorStop(1 - q, '#000'); g2.addColorStop(1, 'rgba(0,0,0,0)');
+    sctx.fillStyle = g2;
+    sctx.fillRect(-hw, -hh, 2 * hw, 2 * hh);
+    sctx.restore();
+  }
+
+  /** Matrix: Pixel des Originalfotos → freie Koordinaten (Ausgabepixel). Für den Masken-Pinsel. */
+  function layerMatrix(it) {
+    const e = it.edit, f = it.free, d = sdims(it);
+    const g = itemGeom(it, e, d.w, d.h);
+    return new DOMMatrix()
+      .translateSelf(f.cx, f.cy).rotateSelf(f.a).scaleSelf(f.sx ?? 1, f.sy ?? 1)
+      .rotateSelf(e.angle).scaleSelf(e.flipH ? -1 : 1, e.flipV ? -1 : 1).rotateSelf(e.rot * 90)
+      .translateSelf(-g.dw / 2, -g.dh / 2).scaleSelf(g.dw / g.src.sw, g.dh / g.src.sh)
+      .translateSelf(-g.src.sx, -g.src.sy);
+  }
+
+  // ---------- Masken ----------
+  // Maske = Canvas im Koordinatensystem des Originalfotos (max. 2048 px), weiß mit Alpha = Sichtbarkeit.
+  // Rückgängig: je Pinselstrich nur die geänderten 256er-Kacheln (nur Alpha), die beim Anwenden getauscht werden.
+  const MASK_MAX_SIDE = 2048, MASK_TILE = 256;
+  let maskSeq = 1;
+  let tool = 'move';                          // move | hide | show
+  const brush = { size: 60, hardness: 0.5 };  // size in Bildschirm-Pixeln
+
+  function createMask(it) {
+    const r = Math.min(1, MASK_MAX_SIDE / Math.max(it.w, it.h));
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(it.w * r));
+    c.height = Math.max(1, Math.round(it.h * r));
+    const x = c.getContext('2d');
+    x.fillStyle = '#fff';
+    x.fillRect(0, 0, c.width, c.height);
+    return { id: maskSeq++, canvas: c, ctx: x, rx: c.width / it.w, ry: c.height / it.h, ver: 0, log: [] };
+  }
+  function copyMask(m) {
+    const c = document.createElement('canvas');
+    c.width = m.canvas.width; c.height = m.canvas.height;
+    const x = c.getContext('2d');
+    x.drawImage(m.canvas, 0, 0);
+    return { id: maskSeq++, canvas: c, ctx: x, rx: m.rx, ry: m.ry, ver: 0, log: [] };
+  }
+  function readAlpha(m, x, y, w, h) {
+    const d = m.ctx.getImageData(x, y, w, h).data;
+    const a = new Uint8Array(w * h);
+    for (let i = 0; i < a.length; i++) a[i] = d[i * 4 + 3];
+    return a;
+  }
+  function writeAlpha(m, x, y, w, h, a) {
+    const img = m.ctx.createImageData(w, h), d = img.data;
+    for (let i = 0; i < a.length; i++) { d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = 255; d[i * 4 + 3] = a[i]; }
+    m.ctx.putImageData(img, x, y);
+  }
+  function swapPatch(m, patch) {
+    for (const t of patch) {
+      const cur = readAlpha(m, t.x, t.y, t.w, t.h);
+      writeAlpha(m, t.x, t.y, t.w, t.h, t.a);
+      t.a = cur;
+    }
+  }
+  function maskSetVersion(m, v) {
+    while (m.ver < v && m.ver < m.log.length) { swapPatch(m, m.log[m.ver]); m.ver++; }
+    while (m.ver > v) { m.ver--; swapPatch(m, m.log[m.ver]); }
+  }
+  function pushMaskPatch(m, patch) {
+    if (!patch.length) return;
+    m.log.length = m.ver; // Wiederholen-Zweig verwerfen
+    m.log.push(patch);
+    m.ver++;
+  }
+
+  function beginStroke(it, mode = tool) {
+    let created = false;
+    if (!it.layer.mask) { it.layer.mask = createMask(it); created = true; }
+    const m = it.layer.mask;
+    const mat = new DOMMatrix().scaleSelf(m.rx, m.ry).multiplySelf(layerMatrix(it).inverse());
+    const k = view.cssW / cur.fullW * view.z;
+    return { it, m, mat, mode, created, tiles: new Map(), R: brush.size / 2 / k };
+  }
+  function captureTiles(st, x0, y0, x1, y1) {
+    const m = st.m, W = m.canvas.width, H = m.canvas.height;
+    x0 = Math.max(0, Math.floor(x0)); y0 = Math.max(0, Math.floor(y0));
+    x1 = Math.min(W, Math.ceil(x1)); y1 = Math.min(H, Math.ceil(y1));
+    for (let ty = Math.floor(y0 / MASK_TILE) * MASK_TILE; ty < y1; ty += MASK_TILE) {
+      for (let tx = Math.floor(x0 / MASK_TILE) * MASK_TILE; tx < x1; tx += MASK_TILE) {
+        const key = tx + ',' + ty;
+        if (st.tiles.has(key)) continue;
+        const w = Math.min(MASK_TILE, W - tx), h = Math.min(MASK_TILE, H - ty);
+        st.tiles.set(key, { x: tx, y: ty, w, h, a: readAlpha(m, tx, ty, w, h) });
+      }
+    }
+  }
+  function stamp(st, p) {
+    const R = st.R, mat = st.mat;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const [dx, dy] of [[-R, -R], [R, -R], [-R, R], [R, R]]) {
+      const q = mat.transformPoint(new DOMPoint(p.x + dx, p.y + dy));
+      x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x); y1 = Math.max(y1, q.y);
+    }
+    captureTiles(st, x0 - 1, y0 - 1, x1 + 1, y1 + 1);
+    const c = st.m.ctx;
+    c.save();
+    c.setTransform(mat);
+    const g = c.createRadialGradient(p.x, p.y, 0, p.x, p.y, R);
+    const col = st.mode === 'hide' ? '0,0,0' : '255,255,255';
+    g.addColorStop(0, `rgba(${col},1)`);
+    g.addColorStop(Math.min(0.99, brush.hardness), `rgba(${col},1)`);
+    g.addColorStop(1, `rgba(${col},0)`);
+    c.globalCompositeOperation = st.mode === 'hide' ? 'destination-out' : 'source-over';
+    c.fillStyle = g;
+    c.beginPath();
+    c.arc(p.x, p.y, R, 0, Math.PI * 2);
+    c.fill();
+    c.restore();
+  }
+  function strokeTo(st, a, b) {
+    const d = Math.hypot(b.x - a.x, b.y - a.y);
+    const step = Math.max(st.R * 0.25, 0.5);
+    const n = Math.max(1, Math.ceil(d / step));
+    for (let i = 1; i <= n; i++) stamp(st, { x: a.x + (b.x - a.x) * i / n, y: a.y + (b.y - a.y) * i / n });
+  }
+  function finishStroke(st) {
+    pushMaskPatch(st.m, [...st.tiles.values()]);
+    render();
+    commit();
+    renderLayers();
+    updateFreeTools();
+  }
+  function cancelStroke(st) {
+    swapPatch(st.m, [...st.tiles.values()]);
+    if (st.created) st.it.layer.mask = null;
+    render();
+  }
+  function invertMask(it) {
+    let created = false;
+    if (!it.layer.mask) { it.layer.mask = createMask(it); created = true; }
+    const m = it.layer.mask, w = m.canvas.width, h = m.canvas.height;
+    const before = readAlpha(m, 0, 0, w, h);
+    const inv = new Uint8Array(before.length);
+    for (let i = 0; i < inv.length; i++) inv[i] = 255 - before[i];
+    writeAlpha(m, 0, 0, w, h, inv);
+    if (!created) pushMaskPatch(m, [{ x: 0, y: 0, w, h, a: before }]);
+    render(); commit(); renderLayers(); updateFreeTools();
+  }
+
+  /** Ebene kopieren (gleiches Foto, eigene Lage/Maske), direkt darüber einfügen. */
+  function duplicateLayer(it) {
+    const idx = images.indexOf(it);
+    if (idx < 0) return;
+    const copy = {
+      ...it, id: nextId++, edit: cloneEdit(it.edit),
+      free: it.free ? { ...it.free, cx: it.free.cx + 20, cy: it.free.cy + 20 } : null,
+      layer: { ...it.layer, name: layerName(it) + ' Kopie', mask: it.layer.mask ? copyMask(it.layer.mask) : null },
+    };
+    images.splice(idx + 1, 0, copy);
+    selId = copy.id;
+    renderThumbs(); render(); commit(); updateFreeTools();
+  }
+
+  /** Ebene so skalieren/drehen, dass sie in die nächste sichtbare Ebene darunter passt (zum Mischen zweier Fotos). */
+  function fitToBelow(it) {
+    const idx = images.indexOf(it);
+    const below = images.slice(0, idx).reverse().find((i) => i.layer.visible && i.free);
+    if (!below || !it.free) { notice = 'Keine sichtbare Ebene darunter.'; render(); return; }
+    const bb = freeBox(below), d = dims(it);
+    it.edit.scale = Math.min(bb.w / d.w, bb.h / d.h);
+    it.free = { cx: below.free.cx, cy: below.free.cy, a: below.free.a };
+    renderThumbs(); render(); commit();
   }
 
   // ---------- Rückgängig / Wiederholen ----------
@@ -974,8 +1436,11 @@
     const s = {
       items: images.slice(), edits: images.map((i) => cloneEdit(i.edit)),
       frees: images.map((i) => (i.free ? { ...i.free } : null)), state: { ...state },
+      layers: images.map((i) => ({ ...i.layer, mask: null })),
+      masks: images.map((i) => (i.layer.mask ? { m: i.layer.mask, v: i.layer.mask.ver } : null)),
     };
-    s.key = JSON.stringify([s.items.map((i) => i.id), s.edits, s.frees, s.state]);
+    s.key = JSON.stringify([s.items.map((i) => i.id), s.edits, s.frees, s.layers,
+      s.masks.map((x) => (x ? [x.m.id, x.v] : 0)), s.state]);
     return s;
   }
 
@@ -1002,7 +1467,13 @@
     hIndex = i;
     images.length = 0;
     images.push(...s.items);
-    s.items.forEach((it, j) => { it.edit = cloneEdit(s.edits[j]); it.free = s.frees[j] ? { ...s.frees[j] } : null; });
+    s.items.forEach((it, j) => {
+      it.edit = cloneEdit(s.edits[j]);
+      it.free = s.frees[j] ? { ...s.frees[j] } : null;
+      const mk = s.masks[j];
+      it.layer = { ...s.layers[j], mask: mk ? mk.m : null };
+      if (mk) maskSetVersion(mk.m, mk.v);
+    });
     Object.assign(state, s.state);
     if (!selItem()) selId = null;
     syncInputs();
@@ -1037,6 +1508,7 @@
     updateControls();
     const has = images.length > 0;
     els.viewport.classList.toggle('hidden', !has);
+    document.getElementById('zoombar').classList.toggle('hidden', !has);
     els.empty.classList.toggle('hidden', has);
     els.gestureHint.classList.toggle('hidden', !has);
     els.downloadBtn.disabled = !has || exporting;
@@ -1086,16 +1558,17 @@
     const vp = els.viewport;
     const fs = els.previewPanel.classList.contains('fs');
     const vpW = vp.clientWidth || 1;
+    const pad = viewPad(); // im Ebenen-Modus Rand lassen, damit Anfasser greifbar bleiben
     let vpH;
     if (fs) {
       vp.style.height = '';
       vpH = vp.clientHeight || 1;
     } else {
       const maxH = Math.min(window.innerHeight * (coarse ? 0.6 : 0.72), 900);
-      vpH = Math.max(coarse ? 220 : 120, Math.round(Math.min(maxH, vpW * cur.fullH / cur.fullW)));
+      vpH = Math.max(coarse ? 220 : 120, Math.round(Math.min(maxH, (vpW - 2 * pad) * cur.fullH / cur.fullW + 2 * pad)));
       vp.style.height = vpH + 'px';
     }
-    const fit = Math.min(vpW / cur.fullW, vpH / cur.fullH);
+    const fit = Math.min(Math.max(1, vpW - 2 * pad) / cur.fullW, Math.max(1, vpH - 2 * pad) / cur.fullH);
     view.cssW = cur.fullW * fit;
     view.cssH = cur.fullH * fit;
     view.vpW = vpW;
@@ -1116,11 +1589,13 @@
     return Math.max(4, Math.min(zoom1(), zCap) * 4);
   }
 
+  const viewPad = () => (state.layout === 'free' ? 40 : 0);
+
   function clampView() {
     view.z = clamp(view.z, 1, maxZoom());
-    const sw = view.cssW * view.z, sh = view.cssH * view.z;
-    view.tx = sw <= view.vpW ? (view.vpW - sw) / 2 : clamp(view.tx, view.vpW - sw, 0);
-    view.ty = sh <= view.vpH ? (view.vpH - sh) / 2 : clamp(view.ty, view.vpH - sh, 0);
+    const sw = view.cssW * view.z, sh = view.cssH * view.z, pad = viewPad();
+    view.tx = sw <= view.vpW - 2 * pad ? (view.vpW - sw) / 2 : clamp(view.tx, view.vpW - sw - pad, pad);
+    view.ty = sh <= view.vpH - 2 * pad ? (view.vpH - sh) / 2 : clamp(view.ty, view.vpH - sh - pad, pad);
   }
 
   function applyView() {
@@ -1146,9 +1621,12 @@
   function previewScale() {
     const dpr = window.devicePixelRatio || 1;
     const px = Math.min(cur.outW, view.cssW * view.z * dpr);
-    return Math.min(px / cur.fullW,
+    const s = Math.min(px / cur.fullW,
       PREVIEW_MAX_SIDE / Math.max(cur.fullW, cur.fullH),
       Math.sqrt(PREVIEW_MAX_PX / (cur.fullW * cur.fullH)));
+    // Während Bewegen/Malen flüssig bleiben: max. ~3 MP, danach wird scharf nachgezeichnet.
+    return gest && /^(fmove|ptransform|fresize|fhandle|paint)$/.test(gest.type)
+      ? Math.min(s, Math.sqrt(3e6 / (cur.fullW * cur.fullH))) : s;
   }
 
   function renderPreviewCanvas() {
@@ -1177,8 +1655,10 @@
     const ly = (clientY - r.top) / r.height * cur.fullH - cur.margin;
     // Von oben nach unten suchen (später gezeichnete Fotos liegen oben), Drehung berücksichtigen.
     const rects = cur.layout.rects;
+    const fx = state.layout === 'free';
     for (let i = rects.length - 1; i >= 0; i--) {
       const q = rects[i];
+      if (fx && (q.hidden || q.item.layer.locked)) continue; // ausgeblendet/gesperrt: Tippen geht durch
       let px = lx - (q.x + q.w / 2), py = ly - (q.y + q.h / 2);
       if (q.rot) {
         const t = -q.rot * Math.PI / 180, c = Math.cos(t), si = Math.sin(t);
@@ -1198,12 +1678,18 @@
     if (ghost) render();
     updateFreeTools();
     placeSelection();
+    renderLayers();
   }
 
   /** Freie Koordinate → Punkt im Vorschaufenster (CSS-Pixel). */
   function freeToVp(fx, fy) {
     const k = view.cssW / cur.fullW * view.z;
     return { x: view.tx + (fx - cur.origin.x + cur.margin) * k, y: view.ty + (fy - cur.origin.y + cur.margin) * k };
+  }
+  /** Punkt im Vorschaufenster → freie Koordinate. */
+  function vpToFree(p) {
+    const k = view.cssW / cur.fullW * view.z;
+    return { x: (p.x - view.tx) / k + cur.origin.x - cur.margin, y: (p.y - view.ty) / k + cur.origin.y - cur.margin };
   }
 
   function placeSelection() {
@@ -1216,6 +1702,9 @@
       left: c.x - b.w * k / 2 + 'px', top: c.y - b.h * k / 2 + 'px',
       width: b.w * k + 'px', height: b.h * k + 'px', transform: `rotate(${it.free.a}deg)`,
     });
+    els.sel.classList.toggle('small', Math.min(b.w, b.h) * k < 80);
+    els.sel.classList.toggle('locked', !!it.layer.locked);
+    els.sel.classList.toggle('brush', tool !== 'move');
     els.sel.classList.remove('hidden');
   }
 
@@ -1224,8 +1713,20 @@
     const show = state.layout === 'free' && !!it && !!it.free && images.length > 0;
     els.freeTools.classList.toggle('hidden', !show);
     if (!show) return;
-    els.ftName.textContent = `${images.indexOf(it) + 1}. ${it.name}`;
-    els.ftSVal.textContent = `${(scaleOf(it.edit) * 100).toFixed(1).replace('.', ',')} %`;
+    const L = it.layer, f = it.free;
+    els.ftName.textContent = layerName(it) + (L.locked ? ' (gesperrt)' : '');
+    const stretched = (f.sx ?? 1) !== 1 || (f.sy ?? 1) !== 1;
+    const pct = (v) => (v * 100).toFixed(1).replace('.', ',');
+    els.ftSVal.textContent = `${pct(scaleOf(it.edit))} %` + (stretched ? ` · B ${pct(f.sx ?? 1)} / H ${pct(f.sy ?? 1)}` : '');
+    els.ltOp.value = String(Math.round(L.opacity * 100));
+    els.ltOpVal.textContent = String(Math.round(L.opacity * 100));
+    els.ltBlend.value = L.blend;
+    els.ltFe.value = String(Math.round(L.feather * 100));
+    els.ltFeVal.textContent = String(Math.round(L.feather * 100));
+    els.ltInvert.disabled = false;
+    els.ltClearMask.disabled = !L.mask;
+    els.ltUnstretch.disabled = !stretched;
+    updateToolUI();
     els.ftAVal.textContent = `${it.free.a.toFixed(1).replace('.', ',')}°`;
     els.ftGhost.checked = ghost;
   }
@@ -1317,8 +1818,15 @@
     if (ptrs.size === 2) {
       if (gest) clearTimeout(gest.lp);
       hideMarks();
-      if (gest && gest.type === 'fhandle') return;
+      if (gest && (gest.type === 'fhandle' || gest.type === 'fresize')) return;
       const [a, b] = [...ptrs.values()];
+      if (gest && gest.type === 'paint') cancelStroke(gest.stroke); // zweiter Finger: Strich verwerfen
+      if (brushActive() || (gest && gest.type === 'paint')) {
+        // Pinselmodus: zwei Finger bewegen nur die Ansicht, nie die Ebene
+        view.lock = null;
+        gest = { type: 'pinch', d: dist(a, b), m: mid(a, b) };
+        return;
+      }
       const ha = hitVp(a), hb = hitVp(b);
       // Erster Finger hatte evtl. schon ein Foto ein Stück verschoben – zurücksetzen.
       if (gest && gest.f0 && gest.it && (gest.type === 'fpending' || gest.type === 'fmove')) gest.it.free = { ...gest.f0 };
@@ -1343,10 +1851,31 @@
     const hit = hitIndex(e.clientX, e.clientY);
     if (free) {
       const it = selItem();
-      if (e.target.closest('.sel-handle') && it) {
+      if (brushActive()) {
+        // Pinsel: ein Finger malt in die Maske der ausgewählten Ebene
+        const st = beginStroke(it);
+        const fp = vpToFree(p);
+        stamp(st, fp);
+        gest = { type: 'paint', id: e.pointerId, stroke: st, last: fp };
+        render();
+        return;
+      }
+      const hEl = e.target.closest('.sel-h'), rEl = e.target.closest('.sel-rot');
+      if ((hEl || rEl) && it && !it.layer.locked) {
         startLock();
-        const c = freeToVp(it.free.cx, it.free.cy);
-        gest = { type: 'fhandle', id: e.pointerId, it, c, d0: dist(p, c), ang0: angleOf(c, p), f0: { ...it.free }, sc0: scaleOf(it.edit) };
+        if (rEl) {
+          const c = freeToVp(it.free.cx, it.free.cy);
+          gest = { type: 'fhandle', id: e.pointerId, it, c, ang0: angleOf(c, p), f0: { ...it.free } };
+          return;
+        }
+        const hx = +hEl.dataset.hx, hy = +hEl.dataset.hy, b = freeBox(it), f0 = { ...it.free };
+        const a = f0.a * Math.PI / 180, co = Math.cos(a), si = Math.sin(a);
+        const rot = (x, y) => ({ x: f0.cx + x * co - y * si, y: f0.cy + x * si + y * co });
+        const A = rot(-hx * b.w / 2, -hy * b.h / 2), Hp = rot(hx * b.w / 2, hy * b.h / 2), P0 = vpToFree(p);
+        gest = {
+          type: 'fresize', id: e.pointerId, it, hx, hy, f0, S0: scaleOf(it.edit), w0: b.w, h0: b.h, A,
+          grab: { x: Hp.x - P0.x, y: Hp.y - P0.y }, d: dims(it),
+        };
         return;
       }
       if (hit >= 0) {
@@ -1415,9 +1944,46 @@
       return;
     }
     if (e.pointerId !== g.id) return;
+    if (g.type === 'paint') {
+      const fp = vpToFree(p);
+      strokeTo(g.stroke, g.last, fp);
+      g.last = fp;
+      render();
+      return;
+    }
+    if (g.type === 'fresize') {
+      // Ecke = proportional (edit.scale), Kante = nur Breite (free.sx) bzw. Höhe (free.sy); Gegenseite bleibt fest
+      const it = g.it, f = it.free, P = vpToFree(p);
+      P.x += g.grab.x; P.y += g.grab.y;
+      const a = g.f0.a * Math.PI / 180, co = Math.cos(a), si = Math.sin(a);
+      const dx = P.x - g.A.x, dy = P.y - g.A.y;
+      const vx = dx * co + dy * si, vy = -dx * si + dy * co;
+      const snap = !e.shiftKey;
+      let nw = g.w0, nh = g.h0;
+      if (g.hx && g.hy) {
+        let fct = (vx * g.hx * g.w0 + vy * g.hy * g.h0) / (g.w0 * g.w0 + g.h0 * g.h0);
+        fct = Math.max(fct, 8 / Math.min(g.w0, g.h0));
+        let S = clamp(g.S0 * fct, 0.05, 10);
+        if (snap && Math.abs(S - 1) < 0.015) S = 1;
+        it.edit.scale = S;
+        nw = g.w0 * S / g.S0; nh = g.h0 * S / g.S0;
+      } else if (g.hx) {
+        let sx = Math.max(8, g.hx * vx) / (g.d.w * g.S0);
+        if (snap && Math.abs(sx - 1) < 0.015) sx = 1;
+        f.sx = sx; nw = sx * g.d.w * g.S0;
+      } else {
+        let sy = Math.max(8, g.hy * vy) / (g.d.h * g.S0);
+        if (snap && Math.abs(sy - 1) < 0.015) sy = 1;
+        f.sy = sy; nh = sy * g.d.h * g.S0;
+      }
+      const ox = g.hx * nw / 2, oy = g.hy * nh / 2;
+      f.cx = g.A.x + ox * co - oy * si;
+      f.cy = g.A.y + ox * si + oy * co;
+      render();
+      return;
+    }
     if (g.type === 'fhandle') {
       const f = g.it.free;
-      g.it.edit.scale = clamp(g.sc0 * dist(p, g.c) / g.d0, 0.05, 10);
       let a = normAngle(g.f0.a + normAngle(angleOf(g.c, p) - g.ang0));
       const snap = Math.round(a / 90) * 90;
       if (!e.shiftKey && Math.abs(a - snap) < 2) a = normAngle(snap); // an 0°/90°/180° einrasten
@@ -1480,10 +2046,15 @@
       return;
     }
     if (e.pointerId !== g.id) return;
-    if (g.type === 'fhandle' || g.type === 'fmove' || g.type === 'fpending') {
+    if (g.type === 'paint') {
+      gest = null;
+      if (e.type === 'pointerup') finishStroke(g.stroke); else cancelStroke(g.stroke);
+      return;
+    }
+    if (g.type === 'fhandle' || g.type === 'fresize' || g.type === 'fmove' || g.type === 'fpending') {
       gest = null;
       endLock();
-      if (g.type !== 'fpending') { if (g.type === 'fhandle') renderThumbs(); commit(); }
+      if (g.type !== 'fpending') { if (g.type !== 'fmove') renderThumbs(); commit(); updateFreeTools(); }
       else if (e.type === 'pointerup') handleTap(g, false);
       return;
     }
@@ -1562,6 +2133,9 @@
     const vertical = state.layout === 'v' || state.layout === 'cols';
     const free = state.layout === 'free';
     els.perGroupField.classList.toggle('hidden', !grid);
+    els.thumbs.classList.toggle('hidden', free);
+    if (free) els.listHint.classList.add('hidden');
+    for (const b of els.placeSeg.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.p === state.place));
     els.freeField.classList.toggle('hidden', !free);
     els.equalizeField.classList.toggle('hidden', free);
     els.gapField.classList.toggle('hidden', free);
@@ -2043,11 +2617,77 @@
     commit();
   });
   els.freeReset.addEventListener('click', () => { initFree('h'); render(); commit(); });
+  els.placeSeg.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (b) { state.place = b.dataset.p; updateControls(); commit(); }
+  });
+
+  // ---- Ebenen-Werkzeuge ----
+  const brushActive = () => {
+    const it = selItem();
+    return state.layout === 'free' && tool !== 'move' && !!it && !!it.free && it.layer.visible && !it.layer.locked;
+  };
+  function updateToolUI() {
+    for (const b of els.ltTool.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.t === tool));
+    els.ltBrush.classList.toggle('hidden', tool === 'move');
+    els.sel.classList.toggle('brush', tool !== 'move');
+    if (tool === 'move') els.brushCur.classList.add('hidden');
+    els.ltSizeVal.textContent = String(brush.size);
+    els.ltHardVal.textContent = String(Math.round(brush.hardness * 100));
+  }
+  const selLayer = () => selItem()?.layer;
+  els.ltOp.addEventListener('input', () => {
+    const L = selLayer(); if (!L) return;
+    L.opacity = +els.ltOp.value / 100; els.ltOpVal.textContent = els.ltOp.value; render();
+  });
+  els.ltOp.addEventListener('change', () => { commit(); renderLayers(); });
+  els.ltBlend.addEventListener('change', () => {
+    const L = selLayer(); if (!L) return;
+    L.blend = els.ltBlend.value; render(); commit(); renderLayers();
+  });
+  els.ltFe.addEventListener('input', () => {
+    const L = selLayer(); if (!L) return;
+    L.feather = +els.ltFe.value / 100; els.ltFeVal.textContent = els.ltFe.value; render();
+  });
+  els.ltFe.addEventListener('change', () => { commit(); renderLayers(); });
+  els.ltTool.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    tool = b.dataset.t;
+    updateToolUI();
+    placeSelection();
+  });
+  els.ltSize.addEventListener('input', () => { brush.size = +els.ltSize.value; updateToolUI(); });
+  els.ltHard.addEventListener('input', () => { brush.hardness = +els.ltHard.value / 100; updateToolUI(); });
+  els.ltInvert.addEventListener('click', () => { const it = selItem(); if (it) invertMask(it); });
+  els.ltClearMask.addEventListener('click', () => {
+    const it = selItem(); if (!it || !it.layer.mask) return;
+    it.layer.mask = null; render(); commit(); renderLayers(); updateFreeTools();
+  });
+  els.ltUnstretch.addEventListener('click', () => ftApply((f) => { delete f.sx; delete f.sy; }));
+  els.ltFit.addEventListener('click', () => { const it = selItem(); if (it && !it.layer.locked) fitToBelow(it); });
+  els.ltRename.addEventListener('click', () => {
+    const it = selItem(); if (!it) return;
+    const n = prompt('Name der Ebene:', layerName(it));
+    if (n === null) return;
+    it.layer.name = n.trim() || null;
+    renderLayers(); updateFreeTools(); commit();
+  });
+  els.ltDup.addEventListener('click', () => { const it = selItem(); if (it) duplicateLayer(it); });
+  els.ltDel.addEventListener('click', () => { if (selId !== null) removeImage(selId); });
+  // Pinsel-Kreis unter Maus/Finger anzeigen
+  els.viewport.addEventListener('pointermove', (e) => {
+    if (!brushActive()) { els.brushCur.classList.add('hidden'); return; }
+    const p = vpPoint(e), sz = brush.size;
+    Object.assign(els.brushCur.style, { left: p.x - sz / 2 + 'px', top: p.y - sz / 2 + 'px', width: sz + 'px', height: sz + 'px' });
+    els.brushCur.classList.remove('hidden');
+  });
+  els.viewport.addEventListener('pointerleave', () => els.brushCur.classList.add('hidden'));
 
   // Werkzeuge für das ausgewählte Foto (freier Modus)
   const ftApply = (fn) => {
     const it = selItem();
-    if (!it || !it.free) return;
+    if (!it || !it.free || it.layer.locked) return;
     fn(it.free, it);
     render();
     renderThumbs();
@@ -2120,7 +2760,7 @@
     if (e.key === 'Escape' && els.previewPanel.classList.contains('fs')) { toggleFullscreen(false); return; }
     if (e.target.closest?.('input, select, textarea')) return;
     const it = state.layout === 'free' ? selItem() : null;
-    if (it && it.free && e.key.startsWith('Arrow') && !e.ctrlKey && !e.metaKey) {
+    if (it && it.free && !it.layer.locked && e.key.startsWith('Arrow') && !e.ctrlKey && !e.metaKey) {
       // Feinausrichtung: 1 Ausgabepixel (Umschalt: 10)
       e.preventDefault();
       const step = e.shiftKey ? 10 : 1;
@@ -2167,6 +2807,23 @@
   // Für automatisierte Tests zugänglich machen (keine Auswirkung auf die Nutzung).
   window.__fotoMerge = {
     state, images, view, computeLayout, fitScale, dims, cropToSource, render: doRender, select, initFree,
+    layerMatrix, invertMask, duplicateLayer, fitToBelow, commit,
+    renderOutput(scale = 1) {
+      const L = computeLayout(images);
+      const c = document.createElement('canvas');
+      draw(c, L, scale, state, false);
+      return c;
+    },
+    /** Pinselstrich in freien Koordinaten (für Tests). */
+    paint(id, pts, mode, R) {
+      const it = images.find((i) => i.id === id);
+      const st = beginStroke(it, mode);
+      if (R) st.R = R;
+      stamp(st, pts[0]);
+      for (let i = 1; i < pts.length; i++) strokeTo(st, pts[i - 1], pts[i]);
+      finishStroke(st);
+    },
+    get tool() { return tool; },
     get selId() { return selId; },
     openEditor, closeEditor, ed, undo, redo, zoomAt, get history() { return history; }, get hIndex() { return hIndex; },
   };

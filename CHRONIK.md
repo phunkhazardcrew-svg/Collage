@@ -66,3 +66,21 @@
 - Abstand/Rand: nicht mehr gespeichert (Start immer 0), Regler in zugeklapptem `<details>` „optional“.
 - Tests: sep.js (10, Touch per CDP: nur Foto 1 wächst, nur Foto 2 schrumpft, keine versehentliche Drehung,
   Finger auf zwei Fotos = Ansicht-Zoom, Rückgängig), free.js, v2.js – alle grün.
+
+## 2026-11-10 – v3.0 (Ebenen / Überlagern) – Checkpoint 1
+- Nutzer: Bilder überlagern mit Ebenen-Panel, Deckkraft/Mischmodi, weiche Übergänge (Maske), „Morphing“ = Standbild-Mischen,
+  Größe per Anfasser (Ecken/Kanten) + zwei Finger, Leinwand wächst mit. Plan: /root/.claude/plans/scalable-plotting-biscuit.md
+- Umsetzung im Modus „Frei / Ebenen“ (Wert bleibt 'free'):
+  - `it.layer = {name, opacity, blend, visible, locked, feather, mask}`; Verzerrung `free.sx/sy`; `state.place` daneben/darüber.
+  - `draw()`: Ebenen auf transparent, Hintergrund zuletzt (`destination-over`) → Mischmodi wie Photoshop; `drawPlaced()`;
+    Masken/weiche Kante über Kachel-Hilfscanvas (`drawMaskedLayer`, 2048er Kacheln, `featherPass`).
+  - Masken im Koordinatensystem des Originalfotos (max. 2048 px), Pinsel über `layerMatrix()` (DOMMatrix) → folgt Verschieben/Drehen/
+    Verzerren/Zuschneiden; Rückgängig über 256er-Kachel-Patches (nur Alpha, Tausch-Prinzip, `maskSetVersion`).
+  - 8 Anfasser + Dreh-Griff (`fresize`/`fhandle`), Einrasten 100 %/0°/90°; Ebenen-Panel (oben = vorne, ≡ ziehen, Auge, Schloss);
+    Werkzeuge: Deckkraft, 16 Mischmodi, weiche Kante, Pinsel verbergen/zurückholen, Maske umkehren/löschen, Verzerrung aufheben,
+    „Auf Ebene darunter einpassen“, Umbenennen, Duplizieren, Löschen.
+  - Gefundene Bugs: Klasse `sel` doppelt belegt (Ebenen-Zeile sprang an den Seitenanfang) → `cur`; Anfasser am Rand abgeschnitten
+    → Innenabstand 40 px im Ebenen-Modus; Zoom-Leiste verdeckte Eck-Anfasser → Leiste unter die Vorschau verschoben.
+- Tests: layers.js (35, Pixel-genaue Mischmodi, Masken + Rückgängig, Anfasser per Touch, Pinsel-Gesten, Panel, Download = Vorschau),
+  big.js (6000×4000 maskiert + weiche Kante exportiert, 30 MP in 1,7 s), v2/free/sep – alle grün.
+- Offen: Performance-Caches (darunter/darüber-Zwischenbilder) noch nicht umgesetzt; Pinsel ~44 ms/Strich bei 30 MP am Desktop.
