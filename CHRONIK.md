@@ -84,3 +84,20 @@
 - Tests: layers.js (35, Pixel-genaue Mischmodi, Masken + Rückgängig, Anfasser per Touch, Pinsel-Gesten, Panel, Download = Vorschau),
   big.js (6000×4000 maskiert + weiche Kante exportiert, 30 MP in 1,7 s), v2/free/sep – alle grün.
 - Offen: Performance-Caches (darunter/darüber-Zwischenbilder) noch nicht umgesetzt; Pinsel ~44 ms/Strich bei 30 MP am Desktop.
+
+## 2026-11-10 – v3.0 final (Review-Runde mit 3 Agenten)
+- Touch/UX (7 Funde): gezoomt greift ein Finger nur die ausgewählte Ebene (sonst Ansicht verschieben), Zwei-Finger-Zoom einer Ebene
+  nur auf der ausgewählten; Pinsel auf gesperrter Ebene malt (Sperre = nur Lage), auf ausgeblendeter Ebene Hinweis statt Ebene darunter
+  zu verschieben; kleine Ebenen: Anfasser im Inneren → verschieben; Tipp-Zittern-Schwelle 10 px; kein Rahmen für ausgeblendete Ebene;
+  Vollbild scrollbar, Werkzeug/Pinsel oben in den Werkzeugen; Werkzeug springt bei Ebenenwechsel auf „Bewegen“; Innenabstand 26 px < 400 px Breite.
+- Performance/Speicher: Masken-Rückgängig mit `base`-Versatz und `trimMaskLogs()` (Budget 96 MB, ältere Schritte verfallen, URLs freigegeben)
+  – vorher 249 MB nach 200 Strichen; Hilfs-Canvas nur so groß wie nötig, wächst nur, nach Export freigegeben (Vorschau 115 → 36 ms);
+  `select()` färbt nur noch die Zeile um (1,8 → 0,04 ms); Fotoliste im Ebenen-Modus nicht mehr doppelt gezeichnet.
+- Korrektheit: Rückgängig/Umkehren/Löschen/Duplizieren/… während eines Pinselstrichs verwerfen den Strich (`abortPaint`) statt die Maske
+  zu beschädigen; leere Striche/„Zurückholen“ ohne Maske legen keine Maske an; Speicherengpass schaltet Masken nicht mehr dauerhaft ab,
+  Export wirft dann und versucht kleiner (`strict`); verzerrte Ebenen in der Vorschau aus dem Original (nicht unscharf);
+  zweiter Finger: kurzer Tupfer verworfen, längerer Strich bleibt.
+- Verifiziert durch Agenten: Maskenausrichtung bei rot90/Spiegeln/Ausschnitt/Winkel/freier Drehung/Verzerrung (Vorschau + Export),
+  keine Kachel-Nähte, Zufalls-Stresstest Rückgängig/Wiederholen (≈1500 Operationen) ohne Abweichung.
+- Bekannte Grenzen: weiche Kante blendet den äußeren Rahmen aus (bei im Editor schräg gestelltem Foto nicht exakt die Fotokante);
+  Antippen ignoriert per Maske verborgene Bereiche; Ebenen/Masken werden beim Neuladen nicht gespeichert.

@@ -815,6 +815,7 @@
   }
 
   function removeImage(id) {
+    abortPaint();
     const i = images.findIndex((x) => x.id === id);
     if (i < 0) return;
     images.splice(i, 1); // URL bleibt gültig, damit "Rückgängig" das Foto zurückholen kann
@@ -1153,7 +1154,8 @@
   }
 
   /** Zeichnet die Collage. scale wirkt auf Bilder, Abstände und Rand. */
-  function draw(canvas, layout, scale, st = state, fast = false, ghostItem = null) {
+  // strict = Export: lieber Fehler werfen (→ kleiner erneut versuchen) als Masken still wegzulassen
+  function draw(canvas, layout, scale, st = state, fast = false, ghostItem = null, strict = false) {
     const m = st.margin;
     const W = Math.max(1, Math.round((layout.W + 2 * m) * scale));
     const H = Math.max(1, Math.round((layout.H + 2 * m) * scale));
@@ -1173,7 +1175,7 @@
       const isGhost = r.item === ghostItem;
       ctx.globalAlpha = (L ? L.opacity : 1) * (isGhost ? 0.5 : 1);
       ctx.globalCompositeOperation = L && !isGhost ? L.blend : 'source-over';
-      if (L && (L.mask || L.feather > 0)) drawMaskedLayer(ctx, r, L, scale, m, fast);
+      if (L && (L.mask || L.feather > 0)) drawMaskedLayer(ctx, r, L, scale, m, fast, strict);
       else drawPlaced(ctx, r, scale, m, fast);
     }
     ctx.globalAlpha = 1;
@@ -1196,7 +1198,7 @@
       if (r.rot) ctx.rotate(r.rot * Math.PI / 180);
       if (sx !== 1 || sy !== 1) ctx.scale(sx, sy);
       const iw = hw / sx, ih = hh / sy;
-      drawItem(ctx, r.item, r.item.edit, -iw, -ih, iw, ih, fast, srcOv);
+      drawItem(ctx, r.item, r.item.edit, -iw, -ih, iw, ih, fast && Math.max(sx, sy) <= 1.05, srcOv);
       ctx.restore();
       return;
     }
@@ -1211,24 +1213,25 @@
   // Ebenen mit Maske/weicher Kante: in Kacheln über eine wiederverwendete Hilfs-Canvas (spart Handy-Speicher).
   const TILE = 2048;
   let scratch = null;
-  let scratchFailed = false;
-  /** Hilfs-Canvas nur so groß wie nötig (große Hilfs-Canvas macht jedes Zeichnen langsamer). */
+  /** Hilfs-Canvas nur so groß wie nötig; wächst bei Bedarf (nie hin und her), wird nach dem Export freigegeben. */
   function getScratch(w, h) {
-    if (scratchFailed) return null;
     const nw = Math.min(TILE, Math.ceil(w / 256) * 256), nh = Math.min(TILE, Math.ceil(h / 256) * 256);
-    if (scratch && scratch.width >= nw && scratch.height >= nh && scratch.width * scratch.height <= 4 * nw * nh) return scratch;
-    if (scratch) { scratch.width = scratch.height = 0; }
-    scratch = document.createElement('canvas');
-    if (!canvasUsable(scratch, nw, nh)) {
-      scratch = null;
-      scratchFailed = true;
-      notice = 'Zu wenig Speicher für Masken/weiche Kanten – sie werden vorübergehend ohne Effekt gezeigt.';
-      return null;
+    if (scratch && scratch.width >= nw && scratch.height >= nh) return scratch;
+    const gw = Math.max(nw, scratch ? scratch.width : 0), gh = Math.max(nh, scratch ? scratch.height : 0);
+    releaseScratch();
+    const c = document.createElement('canvas');
+    if (!canvasUsable(c, gw, gh)) {
+      notice = 'Zu wenig Speicher für Masken/weiche Kanten – Vorschau vorübergehend ohne Effekt.';
+      return null; // kein dauerhaftes Abschalten: beim nächsten Zeichnen erneut versuchen
     }
+    scratch = c;
     return scratch;
   }
+  function releaseScratch() {
+    if (scratch) { scratch.width = scratch.height = 0; scratch = null; }
+  }
 
-  function drawMaskedLayer(ctx, r, L, scale, m, fast) {
+  function drawMaskedLayer(ctx, r, L, scale, m, fast, strict = false) {
     const cw = ctx.canvas.width, ch = ctx.canvas.height;
     const hw = r.w * scale / 2, hh = r.h * scale / 2;
     const cx = (r.x + m) * scale + hw, cy = (r.y + m) * scale + hh;
@@ -1238,7 +1241,11 @@
     const x1 = Math.min(cw, Math.ceil(cx + ex)), y1 = Math.min(ch, Math.ceil(cy + ey));
     if (x1 <= x0 || y1 <= y0) return;
     const sc = getScratch(Math.min(TILE, x1 - x0), Math.min(TILE, y1 - y0));
-    if (!sc) { drawPlaced(ctx, r, scale, m, fast); return; } // Notlösung: ohne Maske zeichnen
+    if (!sc) {
+      if (strict) throw new Error('scratch');
+      drawPlaced(ctx, r, scale, m, fast); // Notlösung in der Vorschau: diesmal ohne Maske zeichnen
+      return;
+    }
     const sctx = sc.getContext('2d');
     const maskSrc = L.mask ? { src: L.mask.canvas, rx: L.mask.rx, ry: L.mask.ry } : null;
     for (let ty = y0; ty < y1; ty += TILE) {
@@ -1371,8 +1378,11 @@
       }
       // Zu viel Speicher: älteste Schritte verwerfen (mindestens 10 bleiben).
       if (total <= MASK_LOG_BUDGET || history.length <= 10 || hIndex <= 0) return;
-      history.shift();
+      const dropped = history.shift();
       hIndex--;
+      const live = new Set(images.map((i) => i.url));
+      for (const h of history) for (const i of h.items) live.add(i.url);
+      for (const i of dropped.items) if (!live.has(i.url)) URL.revokeObjectURL(i.url);
     }
   }
 
@@ -1463,6 +1473,7 @@
 
   /** Ebene kopieren (gleiches Foto, eigene Lage/Maske), direkt darüber einfügen. */
   function duplicateLayer(it) {
+    abortPaint();
     const idx = images.indexOf(it);
     if (idx < 0) return;
     const copy = {
@@ -1479,6 +1490,7 @@
 
   /** Ebene so skalieren/drehen, dass sie in die nächste sichtbare Ebene darunter passt (zum Mischen zweier Fotos). */
   function fitToBelow(it) {
+    abortPaint();
     const idx = images.indexOf(it);
     const below = images.slice(0, idx).reverse().find((i) => i.layer.visible && i.free);
     if (!below || !it.free) { notice = 'Keine sichtbare Ebene darunter.'; render(); return; }
@@ -2583,7 +2595,7 @@
       const h = Math.max(1, Math.round(fullH * scale));
       if (!canvasUsable(canvas, w, h)) { retry(scale, tries); return; }
       try {
-        draw(canvas, layout, scale, st, false);
+        draw(canvas, layout, scale, st, false, null, true);
         canvas.toBlob((blob) => {
           canvas.width = canvas.height = 0;
           if (!blob) { retry(scale, tries); return; }
@@ -2597,6 +2609,7 @@
     const retry = (scale, tries) => {
       if (tries <= 0) {
         exporting = false;
+        releaseScratch();
         notice = 'Export fehlgeschlagen – bitte kleinere Maximalgröße wählen.';
         render();
         return;
@@ -2605,6 +2618,7 @@
     };
     const finish = (blob, reduced) => {
       exporting = false;
+      releaseScratch(); // große Export-Hilfs-Canvas nicht für die Vorschau behalten
       if (reduced) notice = `Hinweis: Dieser Browser kann die volle Größe nicht erzeugen – gespeichert wurden ${reduced}.`;
       render();
       // Manche Browser können kein WebP erzeugen und liefern PNG.
@@ -2772,6 +2786,7 @@
 
   // Werkzeuge für das ausgewählte Foto (freier Modus)
   const ftApply = (fn) => {
+    abortPaint();
     const it = selItem();
     if (!it || !it.free || it.layer.locked) return;
     fn(it.free, it);
@@ -2788,6 +2803,7 @@
   els.ftRotL.addEventListener('click', () => ftApply((f) => { f.a = normAngle(f.a - 90); }));
   els.ftRotR.addEventListener('click', () => ftApply((f) => { f.a = normAngle(f.a + 90); }));
   const restack = (front) => {
+    abortPaint();
     const it = selItem();
     if (!it) return;
     images.splice(images.indexOf(it), 1);
@@ -2846,7 +2862,7 @@
     if (e.key === 'Escape' && els.previewPanel.classList.contains('fs')) { toggleFullscreen(false); return; }
     if (e.target.closest?.('input, select, textarea')) return;
     const it = state.layout === 'free' ? selItem() : null;
-    if (it && it.free && !it.layer.locked && e.key.startsWith('Arrow') && !e.ctrlKey && !e.metaKey) {
+    if (it && it.free && !it.layer.locked && !gest && e.key.startsWith('Arrow') && !e.ctrlKey && !e.metaKey) {
       // Feinausrichtung: 1 Ausgabepixel (Umschalt: 10)
       e.preventDefault();
       const step = e.shiftKey ? 10 : 1;

@@ -36,6 +36,20 @@ oder über „Teilen / in Galerie speichern …“ direkt in Google Fotos, Whats
 - Export: JPEG / PNG (verlustfrei) / WebP; „Original“ = volle Auflösung.
 - Alles läuft lokal im Browser, nichts wird hochgeladen.
 
+## Ebenen / Überlagern (ab v3.0)
+Layout **„Frei / Ebenen (überlagern)“** wählen, unter „Neue Fotos einfügen“ **„darüber“** antippen, dann Fotos hinzufügen –
+sie werden übereinandergelegt. Unter der Vorschau erscheint das **Ebenen-Panel** (oben = vorne):
+- ≡ ziehen = Reihenfolge ändern · Auge = ein-/ausblenden · Schloss = Lage sperren (Antippen wählt dann die Ebene darunter).
+- **Anfasser** am ausgewählten Foto: Ecken = proportional größer/kleiner, Kanten = nur Breite bzw. Höhe (verzerren),
+  runder Griff oben = drehen (rastet bei 0°/90° ein). Zwei Finger auf dem ausgewählten Foto = zoomen & drehen.
+- **Werkzeug:** Bewegen · 🖌 Verbergen · 🖌 Zurückholen – mit dem Finger Teile einer Ebene weich wegmalen (Maske),
+  Pinselgröße und Härte einstellbar; zwei Finger zoomen dabei nur die Ansicht. Maske umkehren / löschen.
+- **Deckkraft**, **16 Mischmodi** (Multiplizieren, Negativ multiplizieren, Ineinanderkopieren, Weiches Licht, Differenz …),
+  **Weiche Kante** (Ränder ausblenden).
+- **Zwei Fotos mischen:** obere Ebene „Auf Ebene darunter einpassen“, dann Deckkraft regeln.
+- Umbenennen, Duplizieren, Löschen; alles mit Rückgängig. Der Export fügt alle Ebenen zu einem Bild zusammen;
+  die Leinwand umfasst alle sichtbaren Ebenen, nichts wird abgeschnitten.
+
 ## Fotos einzeln vergrößern/verkleinern (ab v2.2)
 - **Zwei Finger auf EINEM Foto** auseinander-/zusammenziehen = **nur dieses Foto** wird größer/kleiner – in jedem Layout.
   Die anderen Fotos bleiben unverändert, die Leinwand wächst mit. Drehen per zwei Finger erst ab 10° Fingerdrehung.
