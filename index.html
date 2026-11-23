@@ -1157,16 +1157,25 @@
     });
     // Gewähltes Seitenverhältnis: Leinwand mittig mit Hintergrund erweitern (nichts wird abgeschnitten).
     const R = FIT_RATIOS[state.fitRatio];
+    const mg = state.margin;
     if (R && isFinite(minX)) {
+      // Verhältnis inkl. Rand außen treffen
       const w = maxX - minX, h = maxY - minY;
-      if (w / h < R) { const nw = h * R; minX -= (nw - w) / 2; maxX = minX + nw; }
-      else { const nh = w / R; minY -= (nh - h) / 2; maxY = minY + nh; }
+      if ((w + 2 * mg) / (h + 2 * mg) < R) { const nw = (h + 2 * mg) * R - 2 * mg; minX -= (nw - w) / 2; maxX = minX + nw; }
+      else { const nh = (w + 2 * mg) / R - 2 * mg; minY -= (nh - h) / 2; maxY = minY + nh; }
     }
     // Ursprung auf ganze Pixel, damit ungedrehte Fotos in Originalgröße pixelgenau bleiben.
     const ox = Math.floor(minX + 1e-6), oy = Math.floor(minY + 1e-6);
+    // Auto-Best-Fit: Kanten werden beim Zeichnen gerundet → auch die Größe runden (sonst 1-px-Hintergrundlinie)
+    const fit = state.autoFit;
+    let W = Math.max(1, fit ? Math.round(maxX - ox) : Math.ceil(maxX - 1e-6) - ox);
+    let H = Math.max(1, fit ? Math.round(maxY - oy) : Math.ceil(maxY - 1e-6) - oy);
+    if (R) { // ganzzahlig exakt aufs Format
+      if ((W + 2 * mg) / (H + 2 * mg) < R) W = Math.round((H + 2 * mg) * R - 2 * mg);
+      else H = Math.round((W + 2 * mg) / R - 2 * mg);
+    }
     return {
-      W: Math.max(1, Math.ceil(maxX - 1e-6) - ox),
-      H: Math.max(1, Math.ceil(maxY - 1e-6) - oy),
+      W, H,
       origin: { x: ox, y: oy },
       rects: list.map((it, i) => ({
         item: it, x: it.free.cx - boxes[i].w / 2 - ox, y: it.free.cy - boxes[i].h / 2 - oy,
@@ -1195,7 +1204,9 @@
     const n = as.length;
     const Dt = ws.reduce((a, b) => a + b, 0);
     const d = ws.map((w) => w / Dt);
-    const K = n > 12 ? 20 : n > 8 ? 36 : 64;   // Kandidaten je Intervall (nach Seitenverhältnis gestreut)
+    const K = n > 12 ? 28 : n > 8 ? 40 : 64;   // Kandidaten je Intervall (nach Seitenverhältnis gestreut)
+    const lR = R ? Math.log(R) : 0;
+    const aspPen = (la) => (R ? FIT_ASPECT_WEIGHT * (la - lR) ** 2 : 0.5 * Math.max(0, Math.abs(la) - Math.log(2)) ** 2);
     const LO = -3, HI = 3;
     const memo = Array.from({ length: n }, () => []);
     for (let i = 0; i < n; i++) memo[i][i] = [{ A: as[i], m: 1, S1: 0, S2: 0, D: d[i], leaf: i }];
@@ -1214,8 +1225,9 @@
                 const m = L.m + Rr.m;
                 const S1 = L.m * gL + L.S1 + Rr.m * gR + Rr.S1;
                 const S2 = L.m * gL * gL + 2 * gL * L.S1 + L.S2 + Rr.m * gR * gR + 2 * gR * Rr.S1 + Rr.S2;
-                const v = S2 / m - (S1 / m) ** 2; // Ungleichgewicht (unabhängig vom späteren Gesamtanteil)
                 const la = Math.log(A);
+                // Innen: Ungleichgewicht (unabhängig vom späteren Gesamtanteil); ganz oben: Endbewertung inkl. Format
+                const v = len === n ? S2 / m + aspPen(la) : S2 / m - (S1 / m) ** 2;
                 const b = Math.max(0, Math.min(K - 1, Math.floor((la - LO) / (HI - LO) * K)));
                 if (!bins[b] || v < bins[b].v) bins[b] = { A, m, S1, S2, D, v, o, l: L, r: Rr };
               }
@@ -1227,9 +1239,7 @@
     }
     let best = null;
     for (const c of memo[0][n - 1]) {
-      const la = Math.log(c.A);
-      const asp = R ? FIT_ASPECT_WEIGHT * (la - Math.log(R)) ** 2 : 0.5 * Math.max(0, Math.abs(la) - Math.log(2)) ** 2;
-      const score = c.S2 / c.m + asp;
+      const score = c.S2 / c.m + aspPen(Math.log(c.A));
       if (!best || score < best.score) best = { score, A: c.A, node: c };
     }
     return best;
@@ -1255,24 +1265,35 @@
     return { bw: w * c + h * si, bh: w * si + h * c };
   }
 
-  const fitItems = () => images.filter((i) => i.free && i.layer.visible);
+  const fitItems = () => images.filter((i) => i.free && i.layer.visible && !i.layer.locked); // gesperrt = bleibt, wo es ist
 
   /** Ordnet die sichtbaren Fotos lückenlos an (Reihenfolge = Ebenen-Reihenfolge). */
   function applyFit(list, best) {
     const boxes = list.map(fitBox1);
     const rects = [];
     placeTree(best.node, 0, 0, best.A, 1, rects);
-    // Größe so wählen, dass kein Foto hochgerechnet wird (größter Maßstab = 100 %)
+    // Größe so wählen, dass kein Foto hochgerechnet wird (größter Maßstab = 100 %). Einzelne sehr kleine Fotos
+    // (< 25 % der mittleren Auflösung) dürfen hochgerechnet werden, statt das ganze Ergebnis winzig zu machen.
+    const dens = list.map((it, i) => boxes[i].bw / rects[i].w);
+    const med = dens.slice().sort((a, b) => a - b)[Math.floor(dens.length / 2)];
     let G = Infinity;
-    list.forEach((it, i) => { G = Math.min(G, boxes[i].bw / rects[i].w); });
+    dens.forEach((dv) => { if (dv >= med * 0.25) G = Math.min(G, dv); });
+    const shares = [];
     list.forEach((it, i) => {
       const q = rects[i];
-      const sc = clamp(q.w * G / boxes[i].bw, 0.02, 10); // ≤ 1: nie hochgerechnet
+      shares.push(q.w * q.h / best.A);
+      const sc = q.w * G / boxes[i].bw; // kein Begrenzen – sonst Überlappungen
       it.edit = { ...it.edit, crop: { ...it.edit.crop }, scale: sc };
       it.free.cx = (q.x + q.w / 2) * G;
       it.free.cy = (q.y + q.h / 2) * G;
-      it.layer.fitT = { s: sc, sx: it.free.sx ?? 1, sy: it.free.sy ?? 1, a: it.free.a || 0, cx: it.free.cx, cy: it.free.cy };
+      it.layer.fitT = { s: sc, sx: it.free.sx ?? 1, sy: it.free.sy ?? 1, a: it.free.a || 0, cx: it.free.cx, cy: it.free.cy, share: shares[i] };
     });
+  }
+  /** Flächenanteil von Foto k in einem Packergebnis. */
+  function shareOf(best, k, n) {
+    const rects = [];
+    placeTree(best.node, 0, 0, best.A, 1, rects);
+    return rects[k].w * rects[k].h / best.A;
   }
 
   function fitInputs(list) {
@@ -1298,19 +1319,33 @@
    * Auto-Best-Fit: Änderungen des Nutzers seit der letzten Anordnung auswerten und neu anordnen.
    * Größe geändert → Wunschanteil (fitW) anpassen; Foto verschoben → an der Zielstelle einordnen.
    */
+  let fitDropped = null; // Foto, das der Nutzer gerade (im Auto-Modus) losgelassen hat
+  let lastFitSig = '';
   function autoArrange() {
     const list = fitItems();
     if (!list.length) return;
-    let moved = null;
+    const R = FIT_RATIOS[state.fitRatio] || null;
+    // Größenänderung durch den Nutzer: Wunschanteil schrittweise erhöhen/senken, bis sich sichtbar etwas tut
     for (const it of list) {
-      const t = it.layer.fitT, f = it.free;
+      const t = it.layer.fitT;
       if (!t) continue;
       const s = scaleOf(it.edit);
-      if (Math.abs(s - t.s) > 1e-6) it.layer.fitW = clamp((it.layer.fitW || 1) * (s / t.s) ** 2, 0.05, 50);
-      else if ((f.sx ?? 1) === t.sx && (f.sy ?? 1) === t.sy && (f.a || 0) === t.a
-        && Math.hypot(f.cx - t.cx, f.cy - t.cy) > 2) moved = it;
+      if (Math.abs(s - t.s) <= 1e-6) continue;
+      const dir = s > t.s ? 1 : -1, k = list.indexOf(it), w0 = it.layer.fitW || 1;
+      let w = clamp(w0 * (s / t.s) ** 2, 0.05, 50), ok = false;
+      for (let tries = 0; tries < 10 && !ok; tries++) {
+        it.layer.fitW = w;
+        const { as, ws } = fitInputs(list);
+        const sh = shareOf(packTree(as, ws, R), k);
+        if (t.share === undefined || (dir > 0 ? sh > t.share * 1.03 : sh < t.share / 1.03)) ok = true;
+        else w = clamp(w * (dir > 0 ? 1.25 : 0.8), 0.05, 50);
+      }
+      if (!ok) it.layer.fitW = w0; // keine mögliche Änderung → alles bleibt (kein neuer Rückgängig-Schritt)
     }
-    if (moved) {
+    // Verschoben (nur das bewusst losgelassene Foto): an der Zielstelle einordnen
+    const moved = fitDropped && list.includes(fitDropped) ? fitDropped : null;
+    fitDropped = null;
+    if (moved && moved.layer.fitT) {
       const target = nearestSlot(moved, list);
       if (target !== moved) {
         const from = images.indexOf(moved), to = images.indexOf(target);
@@ -1318,16 +1353,20 @@
         images.splice(to, 0, moved);
       }
     }
+    // Neue Fotos oder neues Format: kurz auch die Reihenfolge optimieren
     const lst = fitItems();
-    const { as, ws } = fitInputs(lst);
-    applyFit(lst, packTree(as, ws, FIT_RATIOS[state.fitRatio] || null));
+    const sig = state.fitRatio + '|' + lst.map((i) => i.id).sort((a, b) => a - b).join(',');
+    if (sig !== lastFitSig) {
+      lastFitSig = sig;
+      if (lst.length > 2) { searchOrder(lst, R, 80); }
+    }
+    const lst2 = fitItems();
+    const { as, ws } = fitInputs(lst2);
+    applyFit(lst2, packTree(as, ws, R));
   }
 
-  /** Knopf "Best-Fit jetzt": zusätzlich verschiedene Reihenfolgen probieren. */
-  function bestFitNow() {
-    const list = fitItems();
-    if (!list.length) return;
-    const R = FIT_RATIOS[state.fitRatio] || null;
+  /** Reihenfolge der Fotos (in ihren Plätzen) für bessere Füllung optimieren – zeitbegrenzt. */
+  function searchOrder(list, R, budgetMs) {
     const score = (ord) => { const { as, ws } = fitInputs(ord); return packTree(as, ws, R).score; };
     const byAsp = (it) => { const b = fitBox1(it); return b.bw / b.bh; };
     const cands = [list.slice(), list.slice().sort((a, b) => byAsp(a) - byAsp(b)), list.slice().sort((a, b) => byAsp(b) - byAsp(a))];
@@ -1335,24 +1374,32 @@
     const zig = [];
     while (alt.length) { zig.push(alt.shift()); if (alt.length) zig.push(alt.pop()); }
     cands.push(zig);
-    let bestOrd = null, bestS = Infinity;
     const t0 = performance.now();
-    for (const c of cands) { const sc = score(c); if (sc < bestS) { bestS = sc; bestOrd = c; } }
-    // Zufällige Reihenfolgen, solange Zeit ist (max. ~300 ms)
+    let bestOrd = null, bestS = Infinity;
+    for (const c of cands) { const sc = score(c); if (sc < bestS - 1e-9) { bestS = sc; bestOrd = c; } }
     let seed = 7;
     const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
-    while (list.length > 2 && performance.now() - t0 < 300) {
+    while (list.length > 2 && performance.now() - t0 < budgetMs) {
       const c = bestOrd.slice();
       const i = Math.floor(rnd() * c.length), j = Math.floor(rnd() * c.length);
       [c[i], c[j]] = [c[j], c[i]];
       const sc = score(c);
       if (sc < bestS - 1e-9) { bestS = sc; bestOrd = c; }
     }
-    // Neue Reihenfolge in die Plätze der sichtbaren Fotos einsetzen (ausgeblendete bleiben, wo sie sind)
+    // in die Plätze der beteiligten Fotos einsetzen (gesperrte/ausgeblendete bleiben, wo sie sind)
     const slots = images.map((it, i) => (list.includes(it) ? i : -1)).filter((i) => i >= 0);
     slots.forEach((slot, k) => { images[slot] = bestOrd[k]; });
-    const { as, ws } = fitInputs(bestOrd);
-    applyFit(bestOrd, packTree(as, ws, R));
+    return bestOrd;
+  }
+
+  /** Knopf "Best-Fit jetzt": zusätzlich verschiedene Reihenfolgen probieren. */
+  function bestFitNow() {
+    const list = fitItems();
+    if (!list.length) return;
+    const R = FIT_RATIOS[state.fitRatio] || null;
+    const ord = searchOrder(list, R, 300);
+    const { as, ws } = fitInputs(ord);
+    applyFit(ord, packTree(as, ws, R));
     renderThumbs(); render(); commit();
   }
 
@@ -1710,6 +1757,7 @@
     const bb = freeBox(below), d = dims(it);
     it.edit.scale = Math.min(bb.w / d.w, bb.h / d.h);
     it.free = { cx: below.free.cx, cy: below.free.cy, a: below.free.a };
+    if (state.autoFit) { it.layer.locked = true; notice = 'Ebene gesperrt, damit Auto-Best-Fit sie über der anderen lässt.'; }
     renderThumbs(); render(); commit();
   }
 
@@ -1732,7 +1780,12 @@
 
   /** Aktuellen Zustand als Schritt merken (nur wenn sich etwas geändert hat). */
   function commit() {
-    if (state.layout === 'free' && state.autoFit && images.length) { autoArrange(); renderLayers(); render(); }
+    if (state.layout === 'free' && state.autoFit && images.length) {
+      const before = images.map((i) => i.id).join(',');
+      autoArrange();
+      if (images.map((i) => i.id).join(',') !== before) renderLayers();
+      render();
+    }
     const s = snapshot();
     if (hIndex >= 0 && history[hIndex].key === s.key) return;
     history = history.slice(0, hIndex + 1);
@@ -2373,6 +2426,7 @@
     if (g.type === 'fhandle' || g.type === 'fresize' || g.type === 'fmove' || g.type === 'fpending') {
       gest = null;
       hideMarks();
+      if (g.type === 'fmove' && e.type === 'pointerup' && state.autoFit) fitDropped = g.it;
       endLock();
       if (g.type !== 'fpending') { if (g.type !== 'fmove') renderThumbs(); commit(); updateFreeTools(); }
       else if (e.type === 'pointerup') handleTap(g, false);
@@ -2420,10 +2474,10 @@
   function handleTap(g, openEd = true) {
     if (state.layout === 'free') select(g.hit >= 0 && images[g.hit] ? images[g.hit].id : null);
     const now = performance.now();
-    const near = lastTap && now - lastTap.t < 350 && Math.hypot(g.x0 - lastTap.x, g.y0 - lastTap.y) < 30;
-    const count = near ? lastTap.n + 1 : 1;
     const id = g.hit >= 0 ? images[g.hit]?.id : undefined;
-    lastTap = { t: now, x: g.x0, y: g.y0, n: count };
+    const near = lastTap && now - lastTap.t < 350 && Math.hypot(g.x0 - lastTap.x, g.y0 - lastTap.y) < 30 && lastTap.id === id;
+    const count = near ? lastTap.n + 1 : 1;
+    lastTap = { t: now, x: g.x0, y: g.y0, n: count, id };
     clearTimeout(tapTimer);
     if (count >= 3) {
       lastTap = null;

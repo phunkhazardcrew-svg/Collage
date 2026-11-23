@@ -114,3 +114,14 @@
 - `handleTap()`: Tipp-Zähler (350 ms/30 px): 1× auswählen/bearbeiten, 2× Ansicht zoomen, 3× Editor sofort.
 - Tests fit.js (17): lückenlos (Füllgrad 100 %), kein Hochrechnen, Formate 2:3/1:1/16:9/9:16/4:5 exakt (Füllgrad 90–100 %),
   Vergrößern → Anteil 19 → 51 %, Ziehen → Einordnen + Rückgängig, Best-Fit jetzt, 3×/2× Tippen (frei + Collage); Regression grün.
+
+## 2026-11-23 – v3.1 Review-Fixes (Best-Fit)
+- Agent prüfte packTree gegen Brute-Force (900+ Fälle, Summenmathematik exakt) und 12 Szenarien. Behoben:
+  einzelnes Mini-Foto machte alles winzig + Clamp → Überlappung (jetzt robuste Dichte, Ausreißer dürfen hochgerechnet werden);
+  1-px-Hintergrundlinie (Größe wird im Auto-Modus gerundet wie die Kanten); gesperrte Ebenen bleiben stehen;
+  Einordnen nur nach echtem Loslassen (`fitDropped`), „Neu anordnen“/Duplizieren vertauschen nichts mehr;
+  Größe +/−/Pinch: Wunschanteil wird schrittweise erhöht, bis sich sichtbar etwas ändert, sonst unverändert (kein leerer Rückgängig-Schritt);
+  Wurzel-Kandidaten nach Endbewertung (inkl. Format) → deutlich bessere Formatfüllung (z. B. 1:1 89 → 95 %, 16:9 93 → 99 %);
+  Format exakt inkl. Rand und ganzzahlig; „Auf Ebene darunter einpassen“ sperrt die Ebene im Auto-Modus;
+  3× Tippen nur auf demselben Foto; bei neuen Fotos/Formatwechsel kurze Reihenfolge-Optimierung (80 ms); Panel nur bei Reihenfolgeänderung neu.
+- Tests: fit.js (17, echtes Touch-Ziehen), layers/v2/free/sep, Agent-Skripte t1–t12 – alle grün.
