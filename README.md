@@ -36,6 +36,16 @@ oder über „Teilen / in Galerie speichern …“ direkt in Google Fotos, Whats
 - Export: JPEG / PNG (verlustfrei) / WebP; „Original“ = volle Auflösung.
 - Alles läuft lokal im Browser, nichts wird hochgeladen.
 
+## Best-Fit & Format (ab v3.1, Modus „Frei / Ebenen“)
+- **Format:** Frei (so eng wie möglich), 1:1, 4:5, 5:4, 2:3, 3:2, 3:4, 4:3, 9:16, 16:9, 21:9. Passt die Anordnung nicht
+  exakt, wird mit schmalem Hintergrund (schwarz) aufgefüllt – es wird nie etwas abgeschnitten.
+- **Auto-Best-Fit** (Schalter): Fotos werden immer **lückenlos** als verschachtelte Zeilen/Spalten angeordnet; kein Foto wird
+  über seine Originalgröße hochgerechnet (das größte bleibt 100 %). Ein Foto größer/kleiner machen (Ecken, zwei Finger, +/−)
+  → die anderen rücken nach. Ein Foto ziehen → der Zielplatz wird markiert, das Foto dort eingeordnet.
+  Die Infozeile zeigt den **Füllgrad** (Anteil Foto statt Hintergrund).
+- **Best-Fit jetzt:** sucht zusätzlich die beste Reihenfolge der Fotos.
+- **3× schnell tippen** auf ein Foto öffnet den Editor (in allen Layouts); 2× tippen zoomt die Ansicht.
+
 ## Ebenen / Überlagern (ab v3.0)
 Layout **„Frei / Ebenen (überlagern)“** wählen, unter „Neue Fotos einfügen“ **„darüber“** antippen, dann Fotos hinzufügen –
 sie werden übereinandergelegt. Unter der Vorschau erscheint das **Ebenen-Panel** (oben = vorne):

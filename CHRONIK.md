@@ -101,3 +101,16 @@
   keine Kachel-Nähte, Zufalls-Stresstest Rückgängig/Wiederholen (≈1500 Operationen) ohne Abweichung.
 - Bekannte Grenzen: weiche Kante blendet den äußeren Rahmen aus (bei im Editor schräg gestelltem Foto nicht exakt die Fotokante);
   Antippen ignoriert per Maske verborgene Bereiche; Ebenen/Masken werden beim Neuladen nicht gespeichert.
+
+## 2026-11-23 – v3.1 (Best-Fit, Format, Dreifach-Tippen)
+- Nutzer: Best-Fit im freien Modus (möglichst wenig Hintergrund, Pixel sparen), adaptiv bei Größe/Verschieben, gängige Formate;
+  Editor per 3× Tippen. Rückfragen: Auto-Schalter (nachrücken/einordnen) · lückenlos skalieren erlaubt · schmale Ränder statt Beschnitt.
+- Algorithmus `packTree()`: Slicing-Baum (nebeneinander = gleiche Höhe, übereinander = gleiche Breite) → immer lückenloses Rechteck.
+  Intervall-DP über die Reihenfolge, Kandidaten je Intervall nach log(Seitenverhältnis) gebinnt (64/36/20 Bins je nach n),
+  Bewertung = Abweichung der Flächenanteile von Wunschanteilen (Summen S1/S2 der Log-Abweichungen, kombinierbar ohne Neuberechnung)
+  + 40·(ln(A/R))². `applyFit()`: Maßstab so, dass größtes Foto = 100 % (kein Hochrechnen). n=16 in ~30 ms.
+- Auto-Modus in `commit()` (`autoArrange()`): Größenänderung → `layer.fitW *= (s/s0)²`; nur verschoben → an nächsten Platz einordnen;
+  dann neu anordnen. Formatwahl polstert die Leinwand in `computeFreeLayout()`. +/− im Auto-Modus ±15 %.
+- `handleTap()`: Tipp-Zähler (350 ms/30 px): 1× auswählen/bearbeiten, 2× Ansicht zoomen, 3× Editor sofort.
+- Tests fit.js (17): lückenlos (Füllgrad 100 %), kein Hochrechnen, Formate 2:3/1:1/16:9/9:16/4:5 exakt (Füllgrad 90–100 %),
+  Vergrößern → Anteil 19 → 51 %, Ziehen → Einordnen + Rückgängig, Best-Fit jetzt, 3×/2× Tippen (frei + Collage); Regression grün.
