@@ -278,6 +278,25 @@
           <button type="button" data-p="side" aria-pressed="true">daneben</button>
           <button type="button" data-p="over" aria-pressed="false">darüber (überlagern)</button>
         </div>
+        <div class="field" style="margin-top:4px">
+          <label for="fitRatio">Format (Seitenverhältnis des Ergebnisses)</label>
+          <select id="fitRatio">
+            <option value="free">Frei – so eng wie möglich</option>
+            <option value="1:1">1:1 Quadrat</option>
+            <option value="4:5">4:5 Hochformat (Instagram)</option>
+            <option value="5:4">5:4 Querformat</option>
+            <option value="2:3">2:3 Hochformat (Foto)</option>
+            <option value="3:2">3:2 Querformat (Foto)</option>
+            <option value="3:4">3:4 Hochformat</option>
+            <option value="4:3">4:3 Querformat</option>
+            <option value="9:16">9:16 Story / Handy</option>
+            <option value="16:9">16:9 Breitbild</option>
+            <option value="21:9">21:9 Kino</option>
+          </select>
+        </div>
+        <label class="check"><input type="checkbox" id="autoFit"> <span><strong>Auto-Best-Fit</strong> – Fotos immer lückenlos anordnen.
+          Foto größer/kleiner machen → die anderen rücken nach · Foto ziehen → wird dort eingeordnet.</span></label>
+        <button type="button" class="secondary" id="bestFitBtn" style="margin:0 0 8px">Best-Fit jetzt (beste Anordnung &amp; Reihenfolge suchen)</button>
         <button type="button" class="secondary" id="freeReset" style="margin:0">Neu anordnen (nebeneinander)</button>
       </div>
 
@@ -589,6 +608,8 @@
     format: 'image/jpeg',
     quality: 0.95,
     place: 'side',      // frei: neue Fotos daneben | darüber (überlagern)
+    fitRatio: 'free',   // frei: Seitenverhältnis des Ergebnisses ('free' = so eng wie möglich)
+    autoFit: false,     // frei: Auto-Best-Fit
   };
   const state = { ...DEFAULTS };
 
@@ -601,7 +622,7 @@
     gapField: $('gapField'), freeField: $('freeField'), freeReset: $('freeReset'), sel: $('sel'),
     freeTools: $('freeTools'), ftName: $('ftName'), ftDeselect: $('ftDeselect'), ftSMinus: $('ftSMinus'), ftSVal: $('ftSVal'),
     ftSPlus: $('ftSPlus'), ftS1: $('ftS1'), ftAMinus: $('ftAMinus'), ftAVal: $('ftAVal'), ftAPlus: $('ftAPlus'), ftA0: $('ftA0'),
-    placeSeg: $('placeSeg'), layers: $('layers'), layerList: $('layerList'), brushCur: $('brushCur'),
+    placeSeg: $('placeSeg'), fitRatio: $('fitRatio'), autoFit: $('autoFit'), bestFitBtn: $('bestFitBtn'), layers: $('layers'), layerList: $('layerList'), brushCur: $('brushCur'),
     ltOp: $('ltOp'), ltOpVal: $('ltOpVal'), ltBlend: $('ltBlend'), ltFe: $('ltFe'), ltFeVal: $('ltFeVal'),
     ltTool: $('ltTool'), ltBrush: $('ltBrush'), ltSize: $('ltSize'), ltSizeVal: $('ltSizeVal'), ltHard: $('ltHard'),
     ltHardVal: $('ltHardVal'), ltInvert: $('ltInvert'), ltClearMask: $('ltClearMask'), ltUnstretch: $('ltUnstretch'),
@@ -641,6 +662,8 @@
       if (['image/jpeg', 'image/png', 'image/webp'].includes(s.format)) state.format = s.format;
       if (Number.isFinite(s.quality) && s.quality >= 0.5 && s.quality <= 1) state.quality = s.quality;
       if (['side', 'over'].includes(s.place)) state.place = s.place;
+      if (s.fitRatio === 'free' || FIT_RATIOS[s.fitRatio]) state.fitRatio = s.fitRatio;
+      if (typeof s.autoFit === 'boolean') state.autoFit = s.autoFit;
     } catch { /* Speicher nicht verfügbar – Standardwerte */ }
   }
 
@@ -659,6 +682,8 @@
     els.maxSize.value = String(state.maxSize);
     els.format.value = state.format;
     els.quality.value = String(Math.round(state.quality * 100));
+    els.fitRatio.value = state.fitRatio;
+    els.autoFit.checked = state.autoFit;
   }
 
   // ---------- Bearbeitung / Geometrie ----------
@@ -1130,6 +1155,13 @@
       }
       return b;
     });
+    // Gewähltes Seitenverhältnis: Leinwand mittig mit Hintergrund erweitern (nichts wird abgeschnitten).
+    const R = FIT_RATIOS[state.fitRatio];
+    if (R && isFinite(minX)) {
+      const w = maxX - minX, h = maxY - minY;
+      if (w / h < R) { const nw = h * R; minX -= (nw - w) / 2; maxX = minX + nw; }
+      else { const nh = w / R; minY -= (nh - h) / 2; maxY = minY + nh; }
+    }
     // Ursprung auf ganze Pixel, damit ungedrehte Fotos in Originalgröße pixelgenau bleiben.
     const ox = Math.floor(minX + 1e-6), oy = Math.floor(minY + 1e-6);
     return {
@@ -1141,6 +1173,187 @@
         w: boxes[i].w, h: boxes[i].h, rot: it.free.a, sx: it.free.sx ?? 1, sy: it.free.sy ?? 1, hidden: isHidden(it),
       })),
     };
+  }
+
+  // ---------- Best-Fit: lückenlose Anordnung als verschachtelte Zeilen/Spalten ----------
+  //
+  // Jede Anordnung ist ein Baum: Blätter = Fotos, innere Knoten = "nebeneinander" (gleiche Höhe) oder
+  // "übereinander" (gleiche Breite). So ergibt sich IMMER ein volles Rechteck ohne Lücken; nur die Fotos
+  // werden skaliert. Gesucht wird (bei fester Reihenfolge) per dynamischer Programmierung über Intervalle:
+  //  - Seitenverhältnis möglichst nah am Ziel (Hintergrund = verschenkte Pixel),
+  //  - Flächenanteile der Fotos möglichst nah an ihren Wunschanteilen (fitW; per Vergrößern änderbar).
+
+  const FIT_RATIOS = { '1:1': 1, '4:5': 4 / 5, '5:4': 5 / 4, '2:3': 2 / 3, '3:2': 3 / 2, '3:4': 3 / 4, '4:3': 4 / 3,
+    '9:16': 9 / 16, '16:9': 16 / 9, '21:9': 21 / 9 };
+  const FIT_ASPECT_WEIGHT = 40;
+
+  /**
+   * as = Seitenverhältnisse, ws = Wunsch-Gewichte (Fläche), R = Ziel-Seitenverhältnis oder null.
+   * Liefert {score, A, node} – node ist der beste Baum.
+   */
+  function packTree(as, ws, R) {
+    const n = as.length;
+    const Dt = ws.reduce((a, b) => a + b, 0);
+    const d = ws.map((w) => w / Dt);
+    const K = n > 12 ? 20 : n > 8 ? 36 : 64;   // Kandidaten je Intervall (nach Seitenverhältnis gestreut)
+    const LO = -3, HI = 3;
+    const memo = Array.from({ length: n }, () => []);
+    for (let i = 0; i < n; i++) memo[i][i] = [{ A: as[i], m: 1, S1: 0, S2: 0, D: d[i], leaf: i }];
+    for (let len = 2; len <= n; len++) {
+      for (let i = 0; i + len - 1 < n; i++) {
+        const j = i + len - 1;
+        const bins = new Array(K);
+        for (let k = i; k < j; k++) {
+          for (const L of memo[i][k]) {
+            for (const Rr of memo[k + 1][j]) {
+              const D = L.D + Rr.D;
+              for (let o = 0; o < 2; o++) {
+                const A = o === 0 ? L.A + Rr.A : 1 / (1 / L.A + 1 / Rr.A);
+                const fL = o === 0 ? L.A / (L.A + Rr.A) : (1 / L.A) / (1 / L.A + 1 / Rr.A);
+                const gL = Math.log(fL / (L.D / D)), gR = Math.log((1 - fL) / (Rr.D / D));
+                const m = L.m + Rr.m;
+                const S1 = L.m * gL + L.S1 + Rr.m * gR + Rr.S1;
+                const S2 = L.m * gL * gL + 2 * gL * L.S1 + L.S2 + Rr.m * gR * gR + 2 * gR * Rr.S1 + Rr.S2;
+                const v = S2 / m - (S1 / m) ** 2; // Ungleichgewicht (unabhängig vom späteren Gesamtanteil)
+                const la = Math.log(A);
+                const b = Math.max(0, Math.min(K - 1, Math.floor((la - LO) / (HI - LO) * K)));
+                if (!bins[b] || v < bins[b].v) bins[b] = { A, m, S1, S2, D, v, o, l: L, r: Rr };
+              }
+            }
+          }
+        }
+        memo[i][j] = bins.filter(Boolean);
+      }
+    }
+    let best = null;
+    for (const c of memo[0][n - 1]) {
+      const la = Math.log(c.A);
+      const asp = R ? FIT_ASPECT_WEIGHT * (la - Math.log(R)) ** 2 : 0.5 * Math.max(0, Math.abs(la) - Math.log(2)) ** 2;
+      const score = c.S2 / c.m + asp;
+      if (!best || score < best.score) best = { score, A: c.A, node: c };
+    }
+    return best;
+  }
+
+  /** Baum in Rechtecke umrechnen (Einheit: Höhe 1). */
+  function placeTree(c, x, y, w, h, out) {
+    if (c.leaf !== undefined) { out[c.leaf] = { x, y, w, h }; return; }
+    if (c.o === 0) {
+      const wl = w * c.l.A / (c.l.A + c.r.A);
+      placeTree(c.l, x, y, wl, h, out); placeTree(c.r, x + wl, y, w - wl, h, out);
+    } else {
+      const hl = h * (1 / c.l.A) / (1 / c.l.A + 1 / c.r.A);
+      placeTree(c.l, x, y, w, hl, out); placeTree(c.r, x, y + hl, w, h - hl, out);
+    }
+  }
+
+  /** Hülle eines Fotos bei Größe 100 % (mit Verzerrung und Drehung) – Grundlage für Best-Fit. */
+  function fitBox1(it) {
+    const d = dims(it), f = it.free;
+    const w = d.w * (f.sx ?? 1), h = d.h * (f.sy ?? 1);
+    const t = (f.a || 0) * Math.PI / 180, c = Math.abs(Math.cos(t)), si = Math.abs(Math.sin(t));
+    return { bw: w * c + h * si, bh: w * si + h * c };
+  }
+
+  const fitItems = () => images.filter((i) => i.free && i.layer.visible);
+
+  /** Ordnet die sichtbaren Fotos lückenlos an (Reihenfolge = Ebenen-Reihenfolge). */
+  function applyFit(list, best) {
+    const boxes = list.map(fitBox1);
+    const rects = [];
+    placeTree(best.node, 0, 0, best.A, 1, rects);
+    // Größe so wählen, dass kein Foto hochgerechnet wird (größter Maßstab = 100 %)
+    let G = Infinity;
+    list.forEach((it, i) => { G = Math.min(G, boxes[i].bw / rects[i].w); });
+    list.forEach((it, i) => {
+      const q = rects[i];
+      const sc = clamp(q.w * G / boxes[i].bw, 0.02, 10); // ≤ 1: nie hochgerechnet
+      it.edit = { ...it.edit, crop: { ...it.edit.crop }, scale: sc };
+      it.free.cx = (q.x + q.w / 2) * G;
+      it.free.cy = (q.y + q.h / 2) * G;
+      it.layer.fitT = { s: sc, sx: it.free.sx ?? 1, sy: it.free.sy ?? 1, a: it.free.a || 0, cx: it.free.cx, cy: it.free.cy };
+    });
+  }
+
+  function fitInputs(list) {
+    return {
+      as: list.map((it) => { const b = fitBox1(it); return b.bw / b.bh; }),
+      ws: list.map((it) => it.layer.fitW || 1),
+    };
+  }
+
+  /** Nächster Platz (Foto, dessen letzter Best-Fit-Mittelpunkt am nächsten liegt) für ein gezogenes Foto. */
+  function nearestSlot(it, list) {
+    let best = it, bd = Infinity;
+    for (const o of list) {
+      const t = o.layer.fitT;
+      if (!t) continue;
+      const dd = Math.hypot(it.free.cx - t.cx, it.free.cy - t.cy);
+      if (dd < bd) { bd = dd; best = o; }
+    }
+    return best;
+  }
+
+  /**
+   * Auto-Best-Fit: Änderungen des Nutzers seit der letzten Anordnung auswerten und neu anordnen.
+   * Größe geändert → Wunschanteil (fitW) anpassen; Foto verschoben → an der Zielstelle einordnen.
+   */
+  function autoArrange() {
+    const list = fitItems();
+    if (!list.length) return;
+    let moved = null;
+    for (const it of list) {
+      const t = it.layer.fitT, f = it.free;
+      if (!t) continue;
+      const s = scaleOf(it.edit);
+      if (Math.abs(s - t.s) > 1e-6) it.layer.fitW = clamp((it.layer.fitW || 1) * (s / t.s) ** 2, 0.05, 50);
+      else if ((f.sx ?? 1) === t.sx && (f.sy ?? 1) === t.sy && (f.a || 0) === t.a
+        && Math.hypot(f.cx - t.cx, f.cy - t.cy) > 2) moved = it;
+    }
+    if (moved) {
+      const target = nearestSlot(moved, list);
+      if (target !== moved) {
+        const from = images.indexOf(moved), to = images.indexOf(target);
+        images.splice(from, 1);
+        images.splice(to, 0, moved);
+      }
+    }
+    const lst = fitItems();
+    const { as, ws } = fitInputs(lst);
+    applyFit(lst, packTree(as, ws, FIT_RATIOS[state.fitRatio] || null));
+  }
+
+  /** Knopf "Best-Fit jetzt": zusätzlich verschiedene Reihenfolgen probieren. */
+  function bestFitNow() {
+    const list = fitItems();
+    if (!list.length) return;
+    const R = FIT_RATIOS[state.fitRatio] || null;
+    const score = (ord) => { const { as, ws } = fitInputs(ord); return packTree(as, ws, R).score; };
+    const byAsp = (it) => { const b = fitBox1(it); return b.bw / b.bh; };
+    const cands = [list.slice(), list.slice().sort((a, b) => byAsp(a) - byAsp(b)), list.slice().sort((a, b) => byAsp(b) - byAsp(a))];
+    const alt = list.slice().sort((a, b) => byAsp(a) - byAsp(b));
+    const zig = [];
+    while (alt.length) { zig.push(alt.shift()); if (alt.length) zig.push(alt.pop()); }
+    cands.push(zig);
+    let bestOrd = null, bestS = Infinity;
+    const t0 = performance.now();
+    for (const c of cands) { const sc = score(c); if (sc < bestS) { bestS = sc; bestOrd = c; } }
+    // Zufällige Reihenfolgen, solange Zeit ist (max. ~300 ms)
+    let seed = 7;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    while (list.length > 2 && performance.now() - t0 < 300) {
+      const c = bestOrd.slice();
+      const i = Math.floor(rnd() * c.length), j = Math.floor(rnd() * c.length);
+      [c[i], c[j]] = [c[j], c[i]];
+      const sc = score(c);
+      if (sc < bestS - 1e-9) { bestS = sc; bestOrd = c; }
+    }
+    // Neue Reihenfolge in die Plätze der sichtbaren Fotos einsetzen (ausgeblendete bleiben, wo sie sind)
+    const slots = images.map((it, i) => (list.includes(it) ? i : -1)).filter((i) => i >= 0);
+    slots.forEach((slot, k) => { images[slot] = bestOrd[k]; });
+    const { as, ws } = fitInputs(bestOrd);
+    applyFit(bestOrd, packTree(as, ws, R));
+    renderThumbs(); render(); commit();
   }
 
   /** Skalierungsfaktor für eine Zielgröße und die Browsergrenzen. */
@@ -1519,6 +1732,7 @@
 
   /** Aktuellen Zustand als Schritt merken (nur wenn sich etwas geändert hat). */
   function commit() {
+    if (state.layout === 'free' && state.autoFit && images.length) { autoArrange(); renderLayers(); render(); }
     const s = snapshot();
     if (hIndex >= 0 && history[hIndex].key === s.key) return;
     history = history.slice(0, hIndex + 1);
@@ -1617,6 +1831,10 @@
     const mp = (outW * outH / 1e6).toFixed(1).replace('.', ',');
     let msg = `Ausgabe: ${outW} × ${outH} px (${mp} MP) · ${images.length} Foto(s)`;
     if (capped) msg += ' · auf Browser-Maximum verkleinert';
+    if (state.layout === 'free' && state.autoFit) {
+      const area = layout.rects.filter((q) => !q.hidden).reduce((a, q) => a + q.w * q.h, 0);
+      msg += ` · Füllgrad ${Math.min(100, Math.round(area / (layout.W * layout.H) * 100))} %`;
+    }
     if (notice) { setInfo(`${notice} · ${msg}`, true); notice = null; }
     else setInfo(msg, false);
     updateFreeTools();
@@ -2095,6 +2313,11 @@
       const k = unitK();
       g.it.free.cx = g.f0.cx + (p.x - g.x0) / k;
       g.it.free.cy = g.f0.cy + (p.y - g.y0) / k;
+      if (state.autoFit) {
+        // Zielplatz zeigen, an dem das Foto eingeordnet wird
+        const t = nearestSlot(g.it, fitItems());
+        placeMark(els.markDst, t !== g.it ? images.indexOf(t) : -1);
+      }
       render();
       return;
     }
@@ -2149,6 +2372,7 @@
     }
     if (g.type === 'fhandle' || g.type === 'fresize' || g.type === 'fmove' || g.type === 'fpending') {
       gest = null;
+      hideMarks();
       endLock();
       if (g.type !== 'fpending') { if (g.type !== 'fmove') renderThumbs(); commit(); updateFreeTools(); }
       else if (e.type === 'pointerup') handleTap(g, false);
@@ -2189,20 +2413,31 @@
   els.viewport.addEventListener('pointercancel', endPointer);
 
   /** Tippen: doppelt = zoomen; einfach = Editor öffnen (normal) bzw. Auswahl aufheben (frei, Hintergrund). */
+  /**
+   * Tippen zählen: 1× = auswählen (frei) bzw. bearbeiten (Collage), 2× = Ansicht zoomen,
+   * 3× schnell hintereinander auf ein Foto = Foto bearbeiten (Editor).
+   */
   function handleTap(g, openEd = true) {
     if (state.layout === 'free') select(g.hit >= 0 && images[g.hit] ? images[g.hit].id : null);
     const now = performance.now();
-    if (lastTap && now - lastTap.t < 320 && Math.hypot(g.x0 - lastTap.x, g.y0 - lastTap.y) < 30) {
-      clearTimeout(tapTimer);
+    const near = lastTap && now - lastTap.t < 350 && Math.hypot(g.x0 - lastTap.x, g.y0 - lastTap.y) < 30;
+    const count = near ? lastTap.n + 1 : 1;
+    const id = g.hit >= 0 ? images[g.hit]?.id : undefined;
+    lastTap = { t: now, x: g.x0, y: g.y0, n: count };
+    clearTimeout(tapTimer);
+    if (count >= 3) {
       lastTap = null;
-      if (view.z > 1.001) zoomAt(1, g.x0, g.y0);
-      else zoomAt(zoom1() > 1.5 ? zoom1() : 3, g.x0, g.y0);
+      if (id !== undefined) openEditor(id);
       return;
     }
-    lastTap = { t: now, x: g.x0, y: g.y0 };
-    const id = g.hit >= 0 ? images[g.hit]?.id : undefined;
-    clearTimeout(tapTimer);
-    tapTimer = setTimeout(() => { lastTap = null; if (openEd && id !== undefined) openEditor(id); }, 320);
+    const x = g.x0, y = g.y0;
+    tapTimer = setTimeout(() => {
+      lastTap = null;
+      if (count === 2) {
+        if (view.z > 1.001) zoomAt(1, x, y);
+        else zoomAt(zoom1() > 1.5 ? zoom1() : 3, x, y);
+      } else if (openEd && id !== undefined) openEditor(id);
+    }, 350);
   }
 
   els.viewport.addEventListener('wheel', (e) => {
@@ -2249,10 +2484,10 @@
     for (const b of els.alignSeg.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === state.align));
     els.gestureHint.textContent = free
       ? (coarse
-        ? 'Foto antippen = auswählen · ziehen = verschieben · Punkte an Ecken = Größe, an Kanten = Breite/Höhe, ◯ oben = drehen · 2 Finger auf dem ausgewählten Foto = zoomen & drehen · Doppeltipp / +/− = Ansicht zoomen'
+        ? 'Foto antippen = auswählen · 3× tippen = bearbeiten · ziehen = verschieben · Punkte an Ecken = Größe, an Kanten = Breite/Höhe, ◯ oben = drehen · 2 Finger auf dem ausgewählten Foto = zoomen & drehen · Doppeltipp / +/− = Ansicht zoomen'
         : 'Foto anklicken = auswählen · ziehen = verschieben · Griff ◢ = drehen & skalieren (Umschalt = frei) · Pfeiltasten = 1 px · Mausrad = Ansicht zoomen')
       : coarse
-      ? 'Zwei Finger auf EINEM Foto = nur dieses Foto größer/kleiner · Antippen = bearbeiten · Doppeltipp / +/− = Ansicht zoomen · gedrückt halten & ziehen = tauschen'
+      ? 'Zwei Finger auf EINEM Foto = nur dieses Foto größer/kleiner · Antippen oder 3× tippen = bearbeiten · Doppeltipp / +/− = Ansicht zoomen · gedrückt halten & ziehen = tauschen'
       : 'Klick = Foto bearbeiten · Doppelklick / Mausrad = zoomen · Ziehen = Fotos tauschen (gezoomt: verschieben)';
   }
 
@@ -2716,6 +2951,13 @@
     commit();
   });
   els.freeReset.addEventListener('click', () => { initFree('h'); render(); commit(); });
+  els.fitRatio.addEventListener('change', () => { state.fitRatio = els.fitRatio.value; render(); commit(); });
+  els.autoFit.addEventListener('change', () => {
+    state.autoFit = els.autoFit.checked;
+    if (state.autoFit) for (const it of images) if (it.layer.fitT) delete it.layer.fitT; // frisch anordnen
+    renderThumbs(); render(); commit();
+  });
+  els.bestFitBtn.addEventListener('click', () => { abortPaint(); bestFitNow(); });
   els.placeSeg.addEventListener('click', (e) => {
     const b = e.target.closest('button');
     if (b) { state.place = b.dataset.p; updateControls(); commit(); }
@@ -2794,8 +3036,10 @@
     renderThumbs();
     commit();
   };
-  els.ftSMinus.addEventListener('click', () => ftApply((f, it) => { it.edit.scale = clamp(scaleOf(it.edit) / 1.01, 0.05, 10); }));
-  els.ftSPlus.addEventListener('click', () => ftApply((f, it) => { it.edit.scale = clamp(scaleOf(it.edit) * 1.01, 0.05, 10); }));
+  // Im Auto-Best-Fit ändern sich Anteile nur stufenweise → deutlichere Schritte
+  const sizeStep = () => (state.layout === 'free' && state.autoFit ? 1.15 : 1.01);
+  els.ftSMinus.addEventListener('click', () => ftApply((f, it) => { it.edit.scale = clamp(scaleOf(it.edit) / sizeStep(), 0.05, 10); }));
+  els.ftSPlus.addEventListener('click', () => ftApply((f, it) => { it.edit.scale = clamp(scaleOf(it.edit) * sizeStep(), 0.05, 10); }));
   els.ftS1.addEventListener('click', () => ftApply((f, it) => { it.edit.scale = 1; }));
   els.ftAMinus.addEventListener('click', () => ftApply((f) => { f.a = normAngle(f.a - 0.1); }));
   els.ftAPlus.addEventListener('click', () => ftApply((f) => { f.a = normAngle(f.a + 0.1); }));
@@ -2909,7 +3153,7 @@
   // Für automatisierte Tests zugänglich machen (keine Auswirkung auf die Nutzung).
   window.__fotoMerge = {
     state, images, view, computeLayout, fitScale, dims, cropToSource, render: doRender, select, initFree,
-    layerMatrix, invertMask, duplicateLayer, fitToBelow, commit,
+    layerMatrix, invertMask, duplicateLayer, fitToBelow, commit, packTree, bestFitNow,
     renderOutput(scale = 1) {
       const L = computeLayout(images);
       const c = document.createElement('canvas');
