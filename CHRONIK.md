@@ -125,3 +125,13 @@
   Format exakt inkl. Rand und ganzzahlig; „Auf Ebene darunter einpassen“ sperrt die Ebene im Auto-Modus;
   3× Tippen nur auf demselben Foto; bei neuen Fotos/Formatwechsel kurze Reihenfolge-Optimierung (80 ms); Panel nur bei Reihenfolgeänderung neu.
 - Tests: fit.js (17, echtes Touch-Ziehen), layers/v2/free/sep, Agent-Skripte t1–t12 – alle grün.
+
+## 2026-11-25 – v3.2 (Auto-Best-Fit mit festen Größen)
+- Nutzer: Bei aktivem Best-Fit dürfen andere Bilder nicht kleiner werden, nur um Lücken zu vermeiden; eigene Größen respektieren.
+- Neu: Auto-Best-Fit packt nur noch Positionen bei festen Größen: `skylinePack()` (links-oben-bündig) über viele Breiten
+  + gespiegelt (spaltenweise), Kosten = Leinwandfläche inkl. Formatrand (`packCost`); Reihenfolge-Suche bei neuen Fotos/
+  Größen/Format (60 ms), Ziehen ordnet ein (ohne Suche). „Best-Fit jetzt“ = gründlichere Suche (300 ms), Größen bleiben.
+  Lückenlose Baum-Anordnung nur noch per Knopf „Lückenlos (Größen angleichen)“ (`gaplessNow`). Gewichte (fitW) entfallen im Auto-Modus.
+- Tests fit2.js (15): Größen bleiben 100 %, keine Überlappung, Formate exakt, Vergrößern/Verkleinern eines Fotos ändert nur dieses,
+  Ziehen ordnet ein, Best-Fit jetzt, Lückenlos = 100 %, danach bleiben Größen fest; packRects n=20 < 1 ms.
+  fit.js prüft noch das alte (verworfene) lückenlose Auto-Verhalten – nur noch die Tipp-Tests darin sind gültig.

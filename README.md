@@ -39,11 +39,13 @@ oder über „Teilen / in Galerie speichern …“ direkt in Google Fotos, Whats
 ## Best-Fit & Format (ab v3.1, Modus „Frei / Ebenen“)
 - **Format:** Frei (so eng wie möglich), 1:1, 4:5, 5:4, 2:3, 3:2, 3:4, 4:3, 9:16, 16:9, 21:9. Passt die Anordnung nicht
   exakt, wird mit schmalem Hintergrund (schwarz) aufgefüllt – es wird nie etwas abgeschnitten.
-- **Auto-Best-Fit** (Schalter): Fotos werden immer **lückenlos** als verschachtelte Zeilen/Spalten angeordnet; kein Foto wird
-  über seine Originalgröße hochgerechnet (das größte bleibt 100 %). Ein Foto größer/kleiner machen (Ecken, zwei Finger, +/−)
-  → die anderen rücken nach. Ein Foto ziehen → der Zielplatz wird markiert, das Foto dort eingeordnet.
+- **Auto-Best-Fit** (Schalter): ordnet die Fotos immer so dicht wie möglich an (möglichst wenig Hintergrund,
+  passend zum gewählten Format). **Deine Bildgrößen bleiben unverändert** – vergrößerst du ein Foto, behalten alle anderen
+  ihre Größe, nur die Positionen werden neu gepackt. Foto ziehen → Zielplatz wird markiert, dort eingeordnet.
   Die Infozeile zeigt den **Füllgrad** (Anteil Foto statt Hintergrund).
-- **Best-Fit jetzt:** sucht zusätzlich die beste Reihenfolge der Fotos.
+- **Best-Fit jetzt:** sucht gründlicher nach der dichtesten Anordnung (Größen bleiben).
+- **Lückenlos (Größen angleichen):** nur auf Knopfdruck – passt die Größen so an, dass gar kein Hintergrund bleibt
+  (kein Foto wird hochgerechnet). Danach bleiben diese Größen wieder fest.
 - **3× schnell tippen** auf ein Foto öffnet den Editor (in allen Layouts); 2× tippen zoomt die Ansicht.
 
 ## Ebenen / Überlagern (ab v3.0)

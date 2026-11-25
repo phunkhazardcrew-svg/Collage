@@ -294,9 +294,12 @@
             <option value="21:9">21:9 Kino</option>
           </select>
         </div>
-        <label class="check"><input type="checkbox" id="autoFit"> <span><strong>Auto-Best-Fit</strong> – Fotos immer lückenlos anordnen.
-          Foto größer/kleiner machen → die anderen rücken nach · Foto ziehen → wird dort eingeordnet.</span></label>
-        <button type="button" class="secondary" id="bestFitBtn" style="margin:0 0 8px">Best-Fit jetzt (beste Anordnung &amp; Reihenfolge suchen)</button>
+        <label class="check"><input type="checkbox" id="autoFit"> <span><strong>Auto-Best-Fit</strong> – Fotos immer so dicht wie möglich
+          anordnen (wenig Hintergrund). Deine Bildgrößen bleiben unverändert; Foto ziehen → wird dort eingeordnet.</span></label>
+        <div class="seg" style="margin-bottom:8px">
+          <button type="button" id="bestFitBtn" title="Größen bleiben, beste dichte Anordnung suchen">Best-Fit jetzt</button>
+          <button type="button" id="gaplessBtn" title="Größen werden angeglichen, damit kein Hintergrund bleibt">Lückenlos (Größen angleichen)</button>
+        </div>
         <button type="button" class="secondary" id="freeReset" style="margin:0">Neu anordnen (nebeneinander)</button>
       </div>
 
@@ -622,7 +625,7 @@
     gapField: $('gapField'), freeField: $('freeField'), freeReset: $('freeReset'), sel: $('sel'),
     freeTools: $('freeTools'), ftName: $('ftName'), ftDeselect: $('ftDeselect'), ftSMinus: $('ftSMinus'), ftSVal: $('ftSVal'),
     ftSPlus: $('ftSPlus'), ftS1: $('ftS1'), ftAMinus: $('ftAMinus'), ftAVal: $('ftAVal'), ftAPlus: $('ftAPlus'), ftA0: $('ftA0'),
-    placeSeg: $('placeSeg'), fitRatio: $('fitRatio'), autoFit: $('autoFit'), bestFitBtn: $('bestFitBtn'), layers: $('layers'), layerList: $('layerList'), brushCur: $('brushCur'),
+    placeSeg: $('placeSeg'), fitRatio: $('fitRatio'), autoFit: $('autoFit'), bestFitBtn: $('bestFitBtn'), gaplessBtn: $('gaplessBtn'), layers: $('layers'), layerList: $('layerList'), brushCur: $('brushCur'),
     ltOp: $('ltOp'), ltOpVal: $('ltOpVal'), ltBlend: $('ltBlend'), ltFe: $('ltFe'), ltFeVal: $('ltFeVal'),
     ltTool: $('ltTool'), ltBrush: $('ltBrush'), ltSize: $('ltSize'), ltSizeVal: $('ltSizeVal'), ltHard: $('ltHard'),
     ltHardVal: $('ltHardVal'), ltInvert: $('ltInvert'), ltClearMask: $('ltClearMask'), ltUnstretch: $('ltUnstretch'),
@@ -1289,12 +1292,7 @@
       it.layer.fitT = { s: sc, sx: it.free.sx ?? 1, sy: it.free.sy ?? 1, a: it.free.a || 0, cx: it.free.cx, cy: it.free.cy, share: shares[i] };
     });
   }
-  /** Flächenanteil von Foto k in einem Packergebnis. */
-  function shareOf(best, k, n) {
-    const rects = [];
-    placeTree(best.node, 0, 0, best.A, 1, rects);
-    return rects[k].w * rects[k].h / best.A;
-  }
+
 
   function fitInputs(list) {
     return {
@@ -1315,34 +1313,109 @@
     return best;
   }
 
-  /**
-   * Auto-Best-Fit: Änderungen des Nutzers seit der letzten Anordnung auswerten und neu anordnen.
-   * Größe geändert → Wunschanteil (fitW) anpassen; Foto verschoben → an der Zielstelle einordnen.
-   */
+  // ---------- Auto-Best-Fit mit FESTEN Größen: Fotos dicht packen (Skyline-Verfahren) ----------
+  // Die Größen bestimmt der Nutzer; optimiert werden nur die Positionen: möglichst kleine Leinwand
+  // (inkl. Rand fürs gewählte Format) = möglichst wenig Hintergrund. Kleine Lücken sind erlaubt.
+
+  /** Packt Rechtecke in gegebener Reihenfolge links-oben-bündig in eine Breite W. */
+  function skylinePack(boxes, order, W) {
+    let sky = [{ x: 0, y: 0, w: W }];
+    const pos = new Array(boxes.length);
+    let maxX = 0, maxY = 0;
+    for (const i of order) {
+      const { w, h } = boxes[i];
+      let best = null;
+      for (let s = 0; s < sky.length; s++) {
+        const x = sky[s].x;
+        if (x + w > W + 1e-6) break;
+        let y = 0;
+        for (let k = s; k < sky.length && sky[k].x < x + w - 1e-9; k++) y = Math.max(y, sky[k].y);
+        const top = y + h;
+        if (!best || top < best.top - 1e-9 || (Math.abs(top - best.top) <= 1e-9 && x < best.x)) best = { x, y, top };
+      }
+      if (!best) best = { x: 0, y: maxY, top: maxY + h }; // breiter als W (sollte nicht vorkommen)
+      pos[i] = { x: best.x, y: best.y };
+      const nx = best.x, ne = best.x + w, ny = best.y + h;
+      const out = [];
+      for (const sg of sky) {
+        const se = sg.x + sg.w;
+        if (se <= nx + 1e-9 || sg.x >= ne - 1e-9) { out.push(sg); continue; }
+        if (sg.x < nx) out.push({ x: sg.x, y: sg.y, w: nx - sg.x });
+        if (se > ne) out.push({ x: ne, y: sg.y, w: se - ne });
+      }
+      out.push({ x: nx, y: ny, w });
+      out.sort((a, b) => a.x - b.x);
+      sky = [];
+      for (const sg of out) {
+        const last = sky[sky.length - 1];
+        if (last && Math.abs(last.y - sg.y) < 1e-9) last.w += sg.w; else sky.push({ ...sg });
+      }
+      maxX = Math.max(maxX, ne); maxY = Math.max(maxY, ny);
+    }
+    return { pos, W: maxX, H: maxY };
+  }
+
+  /** Leinwandfläche (inkl. Formatrand) – kleiner = weniger Hintergrund. */
+  function packCost(W, H, R) {
+    if (R) return W / H < R ? H * H * R : W * W / R;
+    const asp = Math.abs(Math.log(W / H));
+    return W * H * (1 + 0.15 * Math.max(0, asp - Math.log(3))); // freies Format: extreme Streifen leicht meiden
+  }
+
+  /** Beste Packung für eine Reihenfolge: verschiedene Breiten ausprobieren. */
+  function packRects(boxes, order, R) {
+    const n = boxes.length;
+    const minW = Math.max(...boxes.map((b) => b.w));
+    const sumW = boxes.reduce((a, b) => a + b.w, 0);
+    const area = boxes.reduce((a, b) => a + b.w * b.h, 0);
+    const cands = new Set([minW, sumW]);
+    const steps = n > 12 ? 24 : 40;
+    for (let k = 0; k <= steps; k++) cands.add(minW * Math.pow(sumW / minW, k / steps));
+    if (R) for (const f of [0.9, 0.95, 1, 1.05, 1.1, 1.2]) cands.add(Math.min(sumW, Math.max(minW, Math.sqrt(area * R) * f)));
+    let best = null;
+    for (const W of cands) {
+      const r = skylinePack(boxes, order, W);
+      const c = packCost(r.W, r.H, R);
+      if (!best || c < best.cost) best = { ...r, cost: c };
+    }
+    // Zusätzlich spaltenweise packen (gespiegelt): findet bei Hochformat-Zielen oft dichtere Anordnungen
+    const tb = boxes.map((q) => ({ w: q.h, h: q.w }));
+    const minH = Math.max(...boxes.map((q) => q.h)), sumH = boxes.reduce((a, q) => a + q.h, 0);
+    const tc = new Set([minH, sumH]);
+    for (let k = 0; k <= steps; k++) tc.add(minH * Math.pow(sumH / minH, k / steps));
+    if (R) for (const f of [0.9, 0.95, 1, 1.05, 1.1, 1.2]) tc.add(Math.min(sumH, Math.max(minH, Math.sqrt(area / R) * f)));
+    for (const H of tc) {
+      const r = skylinePack(tb, order, H);
+      const c = packCost(r.H, r.W, R);
+      if (c < best.cost) best = { pos: r.pos.map((q) => ({ x: q.y, y: q.x })), W: r.H, H: r.W, cost: c };
+    }
+    return best;
+  }
+
+  const fitBoxesNow = (list) => list.map((it) => { const b = freeBox(it); return { w: b.bw, h: b.bh }; });
+
+  /** Fotos an die gepackten Positionen setzen (Größen bleiben unverändert). */
+  function applyPack(list, res) {
+    const boxes = fitBoxesNow(list);
+    list.forEach((it, i) => {
+      it.free.cx = res.pos[i].x + boxes[i].w / 2;
+      it.free.cy = res.pos[i].y + boxes[i].h / 2;
+      it.layer.fitT = { s: scaleOf(it.edit), sx: it.free.sx ?? 1, sy: it.free.sy ?? 1, a: it.free.a || 0, cx: it.free.cx, cy: it.free.cy };
+    });
+  }
+
+  const packScore = (R) => (ord) => packRects(fitBoxesNow(ord), ord.map((_, i) => i), R).cost;
+
   let fitDropped = null; // Foto, das der Nutzer gerade (im Auto-Modus) losgelassen hat
   let lastFitSig = '';
+  /**
+   * Auto-Best-Fit: Größen bleiben, wie der Nutzer sie eingestellt hat. Bei neuen Fotos, anderer Größe
+   * oder anderem Format wird die beste Reihenfolge gesucht; ein gezogenes Foto wird an der Zielstelle eingeordnet.
+   */
   function autoArrange() {
     const list = fitItems();
     if (!list.length) return;
     const R = FIT_RATIOS[state.fitRatio] || null;
-    // Größenänderung durch den Nutzer: Wunschanteil schrittweise erhöhen/senken, bis sich sichtbar etwas tut
-    for (const it of list) {
-      const t = it.layer.fitT;
-      if (!t) continue;
-      const s = scaleOf(it.edit);
-      if (Math.abs(s - t.s) <= 1e-6) continue;
-      const dir = s > t.s ? 1 : -1, k = list.indexOf(it), w0 = it.layer.fitW || 1;
-      let w = clamp(w0 * (s / t.s) ** 2, 0.05, 50), ok = false;
-      for (let tries = 0; tries < 10 && !ok; tries++) {
-        it.layer.fitW = w;
-        const { as, ws } = fitInputs(list);
-        const sh = shareOf(packTree(as, ws, R), k);
-        if (t.share === undefined || (dir > 0 ? sh > t.share * 1.03 : sh < t.share / 1.03)) ok = true;
-        else w = clamp(w * (dir > 0 ? 1.25 : 0.8), 0.05, 50);
-      }
-      if (!ok) it.layer.fitW = w0; // keine mögliche Änderung → alles bleibt (kein neuer Rückgängig-Schritt)
-    }
-    // Verschoben (nur das bewusst losgelassene Foto): an der Zielstelle einordnen
     const moved = fitDropped && list.includes(fitDropped) ? fitDropped : null;
     fitDropped = null;
     if (moved && moved.layer.fitT) {
@@ -1353,21 +1426,18 @@
         images.splice(to, 0, moved);
       }
     }
-    // Neue Fotos oder neues Format: kurz auch die Reihenfolge optimieren
     const lst = fitItems();
-    const sig = state.fitRatio + '|' + lst.map((i) => i.id).sort((a, b) => a - b).join(',');
-    if (sig !== lastFitSig) {
-      lastFitSig = sig;
-      if (lst.length > 2) { searchOrder(lst, R, 80); }
-    }
-    const lst2 = fitItems();
-    const { as, ws } = fitInputs(lst2);
-    applyFit(lst2, packTree(as, ws, R));
+    const sizes = fitBoxesNow(lst);
+    const sig = state.fitRatio + '|' + lst.map((it, i) => `${it.id}:${Math.round(sizes[i].w)}x${Math.round(sizes[i].h)}`)
+      .sort().join(',');
+    if (sig !== lastFitSig && !moved && lst.length > 1) searchOrder(lst, packScore(R), 60); // Größe/Fotos/Format neu
+    lastFitSig = sig;
+    const ord = fitItems();
+    applyPack(ord, packRects(fitBoxesNow(ord), ord.map((_, i) => i), R));
   }
 
   /** Reihenfolge der Fotos (in ihren Plätzen) für bessere Füllung optimieren – zeitbegrenzt. */
-  function searchOrder(list, R, budgetMs) {
-    const score = (ord) => { const { as, ws } = fitInputs(ord); return packTree(as, ws, R).score; };
+  function searchOrder(list, score, budgetMs) {
     const byAsp = (it) => { const b = fitBox1(it); return b.bw / b.bh; };
     const cands = [list.slice(), list.slice().sort((a, b) => byAsp(a) - byAsp(b)), list.slice().sort((a, b) => byAsp(b) - byAsp(a))];
     const alt = list.slice().sort((a, b) => byAsp(a) - byAsp(b));
@@ -1393,13 +1463,28 @@
   }
 
   /** Knopf "Best-Fit jetzt": zusätzlich verschiedene Reihenfolgen probieren. */
+  /** "Best-Fit jetzt": Größen bleiben, gründlichere Suche nach der dichtesten Anordnung. */
   function bestFitNow() {
     const list = fitItems();
     if (!list.length) return;
     const R = FIT_RATIOS[state.fitRatio] || null;
-    const ord = searchOrder(list, R, 300);
+    const ord = searchOrder(list, packScore(R), 300);
+    applyPack(ord, packRects(fitBoxesNow(ord), ord.map((_, i) => i), R));
+    lastFitSig = '';
+    renderThumbs(); render(); commit();
+  }
+
+  /** "Lückenlos": Größen werden angeglichen, damit gar kein Hintergrund bleibt (nur auf ausdrücklichen Wunsch). */
+  function gaplessNow() {
+    const list = fitItems();
+    if (!list.length) return;
+    const R = FIT_RATIOS[state.fitRatio] || null;
+    for (const it of list) it.layer.fitW = 1;
+    const treeScore = (o) => { const { as, ws } = fitInputs(o); return packTree(as, ws, R).score; };
+    const ord = searchOrder(list, treeScore, 300);
     const { as, ws } = fitInputs(ord);
     applyFit(ord, packTree(as, ws, R));
+    lastFitSig = '';
     renderThumbs(); render(); commit();
   }
 
@@ -3012,6 +3097,7 @@
     renderThumbs(); render(); commit();
   });
   els.bestFitBtn.addEventListener('click', () => { abortPaint(); bestFitNow(); });
+  els.gaplessBtn.addEventListener('click', () => { abortPaint(); gaplessNow(); });
   els.placeSeg.addEventListener('click', (e) => {
     const b = e.target.closest('button');
     if (b) { state.place = b.dataset.p; updateControls(); commit(); }
@@ -3091,7 +3177,7 @@
     commit();
   };
   // Im Auto-Best-Fit ändern sich Anteile nur stufenweise → deutlichere Schritte
-  const sizeStep = () => (state.layout === 'free' && state.autoFit ? 1.15 : 1.01);
+  const sizeStep = () => (state.layout === 'free' && state.autoFit ? 1.05 : 1.01);
   els.ftSMinus.addEventListener('click', () => ftApply((f, it) => { it.edit.scale = clamp(scaleOf(it.edit) / sizeStep(), 0.05, 10); }));
   els.ftSPlus.addEventListener('click', () => ftApply((f, it) => { it.edit.scale = clamp(scaleOf(it.edit) * sizeStep(), 0.05, 10); }));
   els.ftS1.addEventListener('click', () => ftApply((f, it) => { it.edit.scale = 1; }));
@@ -3207,7 +3293,7 @@
   // Für automatisierte Tests zugänglich machen (keine Auswirkung auf die Nutzung).
   window.__fotoMerge = {
     state, images, view, computeLayout, fitScale, dims, cropToSource, render: doRender, select, initFree,
-    layerMatrix, invertMask, duplicateLayer, fitToBelow, commit, packTree, bestFitNow,
+    layerMatrix, invertMask, duplicateLayer, fitToBelow, commit, packTree, bestFitNow, gaplessNow, packRects,
     renderOutput(scale = 1) {
       const L = computeLayout(images);
       const c = document.createElement('canvas');
