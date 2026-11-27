@@ -31,19 +31,53 @@
   /* Kein automatisches Nachscrollen, wenn z. B. die Werkzeuge unter der Vorschau erscheinen –
      sonst springt das Foto unter dem Finger weg. */
   body { overflow-anchor: none; }
-  header { padding: 16px; border-bottom: 1px solid var(--border); background: var(--panel); }
-  header h1 { margin: 0; font-size: 1.25rem; }
-  header p { margin: 4px 0 0; color: var(--muted); font-size: .9rem; }
-  main {
-    display: grid; grid-template-columns: 340px 1fr; gap: 16px;
-    padding: 16px; max-width: 1600px; margin: 0 auto;
+  /* App-Gerüst: Leiste oben · Vorschau · Reiter mit Werkzeugen */
+  .topbar {
+    position: sticky; top: 0; z-index: 20; height: 52px; display: flex; align-items: center; gap: 8px;
+    padding: 0 10px; background: var(--panel); border-bottom: 1px solid var(--border);
   }
-  /* Handy: Reihenfolge Fotos → Vorschau → Anordnung → Export */
+  .topbar h1 { margin: 0; font-size: 1rem; white-space: nowrap; }
+  .tb-actions { display: flex; gap: 6px; margin-left: auto; align-items: center; }
+  .tb-btn {
+    height: 38px; min-width: 38px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px;
+    background: transparent; color: var(--text); font: inherit; font-size: .9rem; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; gap: 4px; user-select: none;
+  }
+  .tb-btn.icon { padding: 0; font-size: 1.05rem; }
+  .tb-btn.accent { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
+  .tb-btn:disabled { opacity: .4; cursor: default; }
+  .tb-btn:hover:not(:disabled) { border-color: var(--accent); }
+  .badge { background: var(--accent); color: var(--accent-text); border-radius: 9px; font-size: .7rem; padding: 0 6px; line-height: 16px; }
+  @media (max-width: 520px) { .topbar h1, .tb-btn .lbl { display: none; } .tb-actions { margin-left: 0; width: 100%; justify-content: space-between; } }
+  main {
+    display: grid; grid-template-columns: minmax(0, 1fr) 390px; gap: 12px; align-items: start;
+    padding: 12px; max-width: 1600px; margin: 0 auto;
+  }
+  .stage { position: sticky; top: 64px; min-width: 0; }
   @media (max-width: 820px) {
-    main { display: flex; flex-direction: column; }
-    main > .controls { display: contents; }
-    main .panel + .panel { margin-top: 0; }
-    #photosPanel { order: 1; } #previewPanel { order: 2; } #layoutPanel { order: 3; } #exportPanel { order: 4; }
+    main { display: block; padding: 0 0 16px; }
+    /* Vorschau bleibt oben stehen, die Werkzeuge scrollen darunter */
+    .stage { top: 52px; z-index: 5; background: var(--bg); padding: 8px 10px 4px; border-bottom: 1px solid var(--border); }
+    .side { margin: 10px; }
+  }
+  .side.panel { padding: 0; overflow: hidden; }
+  .tabs { display: flex; border-bottom: 1px solid var(--border); }
+  .tabs button {
+    flex: 1; padding: 11px 4px; border: 0; border-bottom: 2px solid transparent; background: transparent;
+    color: var(--muted); font: inherit; font-size: .88rem; font-weight: 600; cursor: pointer;
+  }
+  .tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+  .tabpane { padding: 12px; }
+  .grp { border-top: 1px solid var(--border); padding-top: 10px; margin-top: 10px; }
+  .grp-t { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 6px; font-weight: 600; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .two .field { margin-bottom: 6px; }
+  .help { padding: 0 12px 12px; }
+  .help summary { cursor: pointer; font-size: .82rem; color: var(--muted); padding: 4px 0; }
+  .toast {
+    position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 100; max-width: 90vw;
+    background: rgba(20,20,25,.93); color: #fff; padding: 9px 16px; border-radius: 20px; font-size: .86rem;
+    text-align: center; pointer-events: none; box-shadow: 0 4px 16px rgba(0,0,0,.3);
   }
   .panel {
     background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
@@ -55,18 +89,11 @@
   .panel-head h2 { margin: 0; }
   .panel-head .btns { display: flex; gap: 6px; }
   .hint { color: var(--muted); font-size: .8rem; margin: 8px 0 0; }
-  #drop {
-    border: 2px dashed var(--border); border-radius: 10px; padding: 18px; text-align: center;
-    cursor: pointer; color: var(--muted); transition: border-color .15s, background .15s;
-  }
-  #drop.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
-  #drop strong { color: var(--text); }
+  #drop.over { outline: 3px dashed var(--accent); outline-offset: 2px; }
   #fileInput { display: none; }
-  #drop .touch { display: none; }
-  @media (pointer: coarse) { #drop .touch { display: inline; } #drop .desk { display: none; } }
 
   /* Fotoliste */
-  #thumbs { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  #thumbs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
   #thumbs li {
     display: flex; align-items: center; gap: 8px; padding: 6px; border: 1px solid var(--border);
     border-radius: 8px; background: var(--panel); transition: transform .15s;
@@ -84,13 +111,14 @@
   .icon-btn:hover:not(:disabled) { border-color: var(--accent); }
   .icon-btn:disabled { opacity: .35; cursor: default; }
   .icon-btn.del:hover { border-color: var(--danger); color: var(--danger); }
+  .icon-btn.fav { color: #e0a200; }
   .icon-btn.grip { cursor: grab; touch-action: none; border-style: dashed; }
   @media (pointer: coarse) {
     #thumbs .icon-btn { min-width: 42px; height: 42px; }
     #thumbs .icon-btn.del { margin-left: 6px; }
   }
 
-  .field { margin-bottom: 12px; }
+  .field { margin-bottom: 10px; }
   .field > label, .field > .label { display: block; font-size: .85rem; margin-bottom: 4px; }
   .seg { display: flex; flex-wrap: wrap; gap: 4px; }
   .seg button {
@@ -145,14 +173,20 @@
   .zoombar button:hover { background: rgba(255,255,255,.15); }
   .zoombar span { color: #fff; font-size: 12px; min-width: 50px; text-align: center; }
   .zoombar svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; }
-  #empty { color: var(--muted); padding: 40px 16px; text-align: center; border-radius: 8px; }
-  #info { margin-top: 10px; font-size: .85rem; color: var(--muted); }
+  #empty { color: var(--muted); padding: 48px 16px; text-align: center; border-radius: 8px; cursor: pointer; }
+  #empty strong { color: var(--text); font-size: 1.05rem; }
+  #info { margin-top: 4px; font-size: .78rem; color: var(--muted); text-align: center;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #info.warn { color: var(--danger); }
+  /* Vollbild: Vorschau groß, Werkzeuge unten scrollbar */
   #previewPanel.fs {
-    position: fixed; inset: 0; z-index: 50; border-radius: 0; margin: 0; border: 0;
-    display: flex; flex-direction: column;
+    position: fixed; inset: 0; z-index: 50; margin: 0; padding: 6px; max-width: none; background: var(--bg);
+    display: flex; flex-direction: column; gap: 6px;
   }
-  #previewPanel.fs #viewport { flex: 1; height: auto !important; }
+  #previewPanel.fs .stage { position: static; flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0; border: 0; }
+  #previewPanel.fs #viewport { flex: 1; height: auto !important; min-height: 30vh; }
+  #previewPanel.fs .side { flex: none; max-height: 40vh; overflow: auto; margin: 0; }
+  #previewPanel.fs .help { display: none; }
 
   /* Freier Modus */
   .sel { position: absolute; left: 0; top: 0; pointer-events: none; outline: 2px solid var(--accent);
@@ -160,9 +194,11 @@
   .sel-handle { position: absolute; right: -16px; bottom: -16px; width: 32px; height: 32px; border-radius: 50%;
     background: var(--accent); border: 3px solid #fff; pointer-events: auto; cursor: nwse-resize; touch-action: none;
     box-shadow: 0 1px 4px rgba(0,0,0,.4); }
-  .free-tools { margin-top: 10px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; }
-  .ft-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
-  .ft-head strong { font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ft-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .ft-name { flex: 1; min-width: 0; text-align: left; border: 0; background: transparent; color: var(--text); font: inherit;
+    font-weight: 600; font-size: .92rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: text; padding: 0; }
+  .ft-actions { display: flex; gap: 4px; flex: none; }
+  .sel.held { outline-width: 4px; }
   .ft-grid { display: grid; grid-template-columns: auto 38px 1fr 38px auto; gap: 6px; align-items: center; margin-bottom: 8px; font-size: .85rem; }
   .ft-val { text-align: center; font-variant-numeric: tabular-nums; }
 
@@ -178,13 +214,15 @@
   .sel-rot::before { content: ''; position: absolute; inset: -12px; }
   .sel-rot-line { position: absolute; left: 50%; top: -30px; height: 30px; border-left: 2px solid var(--accent); }
   .sel.small .sel-h.edge { display: none; }
+  .sel.rot-below .sel-rot { top: auto; bottom: -42px; }
+  .sel.rot-below .sel-rot-line { top: auto; bottom: -30px; }
   .sel.locked .sel-h, .sel.locked .sel-rot, .sel.locked .sel-rot-line,
   .sel.brush .sel-h, .sel.brush .sel-rot, .sel.brush .sel-rot-line { display: none; }
   .sel.locked { outline-style: dashed; }
   .brush-cur { position: absolute; left: 0; top: 0; border-radius: 50%; pointer-events: none;
     border: 1.5px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.7); }
   /* Ebenen-Panel */
-  .layers { margin-top: 10px; }
+  .layers { margin-top: 0; }
   #layerList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
   #layerList li { display: flex; align-items: center; gap: 8px; padding: 5px; border: 1px solid var(--border);
     border-radius: 8px; background: var(--panel); transition: transform .15s; }
@@ -197,23 +235,27 @@
   #layerList .sub { color: var(--muted); font-size: .75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .icon-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; vertical-align: middle; }
   @media (pointer: coarse) { #layerList .icon-btn { min-width: 42px; height: 42px; } }
-  .lt { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 10px; }
   .seg button:disabled { opacity: .4; cursor: default; }
-  #previewPanel.fs .layers, #previewPanel.fs .free-tools { max-height: 28vh; overflow: auto; flex: none; }
-  #previewPanel.fs #viewport { min-height: 40vh; }
-  #previewPanel.fs { overflow: auto; }
-  #previewPanel.fs #gestureHint { display: none; }
   .sel.small .sel-h::before { inset: -4px; }
 
   /* Editor */
-  dialog#editor {
+  dialog.sheet {
     width: min(760px, 100vw); max-height: 100dvh; padding: 0; border: 0; border-radius: 12px;
     background: var(--panel); color: var(--text); overflow: hidden;
   }
-  dialog#editor::backdrop { background: rgba(0,0,0,.65); }
+  dialog.sheet::backdrop { background: rgba(0,0,0,.65); }
   @media (max-width: 640px) {
-    dialog#editor { width: 100vw; height: 100dvh; max-width: none; max-height: none; border-radius: 0; margin: 0; }
+    dialog.sheet { width: 100vw; height: 100dvh; max-width: none; max-height: none; border-radius: 0; margin: 0; }
   }
+  /* Favoriten */
+  .fav-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; }
+  .fav { position: relative; border: 1px solid var(--border); border-radius: 8px; padding: 6px; cursor: pointer; text-align: center; }
+  .fav:hover { border-color: var(--accent); }
+  .fav img { width: 100%; height: 96px; object-fit: contain; display: block; border-radius: 4px; }
+  .fav .nm { font-size: .72rem; color: var(--muted); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fav .fav-del { position: absolute; top: 2px; right: 2px; min-width: 30px; height: 30px; background: var(--panel); }
+  .fav.added::after { content: '✓ eingefügt'; position: absolute; inset: 0; display: grid; place-items: center; border-radius: 8px;
+    background: color-mix(in srgb, var(--accent) 75%, transparent); color: #fff; font-weight: 600; }
   .ed { display: flex; flex-direction: column; max-height: 100dvh; height: 100%; }
   .ed-head { padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; gap: 8px; align-items: baseline; }
   .ed-head span { color: var(--muted); font-size: .85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -232,150 +274,23 @@
 </style>
 </head>
 <body>
-<header>
+<header class="topbar">
   <h1>Foto-Merge</h1>
-  <p>Fotos zusammenfügen – ohne Zuschneiden, in Originalauflösung. Alles läuft lokal, nichts wird hochgeladen.</p>
+  <div class="tb-actions">
+    <div id="drop" class="tb-btn accent" role="button" tabindex="0" title="Fotos hinzufügen (auch hierher ziehen oder Strg+V)">＋ <span>Fotos</span></div>
+    <button type="button" class="tb-btn" id="favBtn" title="Favoriten – gespeicherte Ausschnitte einfügen">★ <span class="lbl">Favoriten</span><b id="favCount" class="badge hidden">0</b></button>
+    <button type="button" class="tb-btn icon" id="undoBtn" title="Rückgängig (Strg+Z)" aria-label="Rückgängig" disabled>↶</button>
+    <button type="button" class="tb-btn icon" id="redoBtn" title="Wiederholen (Strg+Y)" aria-label="Wiederholen" disabled>↷</button>
+    <button type="button" class="tb-btn" id="quickSave" title="Bild speichern" disabled>⬇ <span class="lbl">Speichern</span></button>
+  </div>
+  <input id="fileInput" type="file" accept="image/*" multiple>
 </header>
 
-<main>
-  <section class="controls">
-    <div class="panel" id="photosPanel">
-      <h2>Fotos</h2>
-      <div id="drop" role="button" tabindex="0">
-        <span class="desk"><strong>Fotos hier ablegen</strong><br>oder klicken zum Auswählen<br>
-        <small>(auch Einfügen mit Strg+V möglich)</small></span>
-        <span class="touch"><strong>＋ Fotos auswählen</strong><br><small>aus Galerie oder Kamera</small></span>
-      </div>
-      <input id="fileInput" type="file" accept="image/*" multiple>
-      <ul id="thumbs"></ul>
-      <p class="hint hidden" id="listHint">≡ ziehen = sortieren · ✎ = drehen, spiegeln, Ausschnitt</p>
+<main id="previewPanel">
+  <section class="stage">
+    <div id="empty" class="checker" role="button" tabindex="0">
+      <strong>＋ Fotos hinzufügen</strong><br><small>antippen · oder hierher ziehen · oder ★ Favoriten</small>
     </div>
-
-    <div class="panel" id="layoutPanel">
-      <h2>Anordnung</h2>
-      <div class="field">
-        <span class="label">Layout</span>
-        <div class="seg" id="layoutSeg">
-          <button type="button" data-v="h" aria-pressed="true">Nebeneinander</button>
-          <button type="button" data-v="v" aria-pressed="false">Untereinander</button>
-          <button type="button" data-v="rows" aria-pressed="false">Raster (Zeilen)</button>
-          <button type="button" data-v="cols" aria-pressed="false">Raster (Spalten)</button>
-          <button type="button" data-v="free" aria-pressed="false">Frei / Ebenen (überlagern)</button>
-        </div>
-      </div>
-
-      <div class="field hidden" id="perGroupField">
-        <label for="perGroup" id="perGroupLabel">Bilder pro Zeile</label>
-        <input id="perGroup" type="number" min="1" max="20" value="2">
-      </div>
-
-      <div class="field hidden" id="freeField">
-        <p class="hint" style="margin:0 0 8px">Fotos frei anordnen oder übereinanderlegen (Ebenen). Foto antippen = auswählen ·
-          ziehen = verschieben · Anfasser an Ecken = Größe, an Kanten = nur Breite/Höhe · runder Griff oben = drehen ·
-          zwei Finger auf dem Foto = zoomen &amp; drehen. Die Leinwand wächst mit, nichts wird abgeschnitten.</p>
-        <span class="label">Neue Fotos einfügen</span>
-        <div class="seg" id="placeSeg" style="margin-bottom:8px">
-          <button type="button" data-p="side" aria-pressed="true">daneben</button>
-          <button type="button" data-p="over" aria-pressed="false">darüber (überlagern)</button>
-        </div>
-        <div class="field" style="margin-top:4px">
-          <label for="fitRatio">Format (Seitenverhältnis des Ergebnisses)</label>
-          <select id="fitRatio">
-            <option value="free">Frei – so eng wie möglich</option>
-            <option value="1:1">1:1 Quadrat</option>
-            <option value="4:5">4:5 Hochformat (Instagram)</option>
-            <option value="5:4">5:4 Querformat</option>
-            <option value="2:3">2:3 Hochformat (Foto)</option>
-            <option value="3:2">3:2 Querformat (Foto)</option>
-            <option value="3:4">3:4 Hochformat</option>
-            <option value="4:3">4:3 Querformat</option>
-            <option value="9:16">9:16 Story / Handy</option>
-            <option value="16:9">16:9 Breitbild</option>
-            <option value="21:9">21:9 Kino</option>
-          </select>
-        </div>
-        <label class="check"><input type="checkbox" id="autoFit"> <span><strong>Auto-Best-Fit</strong> – Fotos immer so dicht wie möglich
-          anordnen (wenig Hintergrund). Deine Bildgrößen bleiben unverändert; Foto ziehen → wird dort eingeordnet.</span></label>
-        <div class="seg" style="margin-bottom:8px">
-          <button type="button" id="bestFitBtn" title="Größen bleiben, beste dichte Anordnung suchen">Best-Fit jetzt</button>
-          <button type="button" id="gaplessBtn" title="Größen werden angeglichen, damit kein Hintergrund bleibt">Lückenlos (Größen angleichen)</button>
-        </div>
-        <button type="button" class="secondary" id="freeReset" style="margin:0">Neu anordnen (nebeneinander)</button>
-      </div>
-
-      <label class="check" id="equalizeField">
-        <input type="checkbox" id="equalize">
-        <span id="equalizeText">Gleiche Höhe angleichen (Bilder skalieren statt Originalpixel)</span>
-      </label>
-
-      <div class="field" id="alignField">
-        <span class="label">Ausrichtung</span>
-        <div class="seg" id="alignSeg">
-          <button type="button" data-v="start" aria-pressed="false">Anfang</button>
-          <button type="button" data-v="center" aria-pressed="true">Mitte</button>
-          <button type="button" data-v="end" aria-pressed="false">Ende</button>
-        </div>
-      </div>
-
-      <details id="spacing" class="spacing">
-      <summary>Abstand &amp; Rand (optional, Standard: aus)</summary>
-      <div class="field" id="gapField">
-        <label for="gap">Abstand zwischen Bildern: <span id="gapVal">0</span> px</label>
-        <input id="gap" type="range" min="0" max="200" value="0">
-      </div>
-      <div class="field">
-        <label for="margin">Rand außen: <span id="marginVal">0</span> px</label>
-        <input id="margin" type="range" min="0" max="300" value="0">
-      </div>
-      </details>
-      <div class="field">
-        <span class="label">Hintergrund</span>
-        <div class="row">
-          <input id="bgColor" type="color" value="#000000" aria-label="Hintergrundfarbe">
-          <label class="check" style="margin:0"><input type="checkbox" id="bgTransparent"> transparent (PNG/WebP)</label>
-        </div>
-      </div>
-    </div>
-
-    <div class="panel" id="exportPanel">
-      <h2>Export</h2>
-      <div class="field">
-        <label for="maxSize">Maximale Größe (längste Seite)</label>
-        <select id="maxSize">
-          <option value="0">Original (höchste Auflösung)</option>
-          <option value="8000">8000 px</option>
-          <option value="4000">4000 px</option>
-          <option value="2048">2048 px</option>
-          <option value="1080">1080 px</option>
-        </select>
-      </div>
-      <div class="field">
-        <label for="format">Format</label>
-        <select id="format">
-          <option value="image/jpeg">JPEG</option>
-          <option value="image/png">PNG (verlustfrei)</option>
-          <option value="image/webp">WebP</option>
-        </select>
-      </div>
-      <div class="field" id="qualityField">
-        <label for="quality">Qualität: <span id="qualityVal">95</span> %</label>
-        <input id="quality" type="range" min="50" max="100" value="95">
-      </div>
-      <button class="primary" id="downloadBtn" disabled>Bild herunterladen</button>
-      <button class="secondary hidden" id="shareBtn" disabled>Teilen / in Galerie speichern …</button>
-      <button class="secondary" id="clearBtn">Alle Fotos entfernen</button>
-    </div>
-  </section>
-
-  <section class="panel" id="previewPanel">
-    <div class="panel-head">
-      <h2>Vorschau</h2>
-      <div class="btns">
-        <button class="icon-btn" id="undoBtn" title="Rückgängig (Strg+Z)" aria-label="Rückgängig" disabled>↶</button>
-        <button class="icon-btn" id="redoBtn" title="Wiederholen (Strg+Y)" aria-label="Wiederholen" disabled>↷</button>
-      </div>
-    </div>
-    <div id="empty" class="checker">Füge mindestens ein Foto hinzu, um die Vorschau zu sehen.</div>
     <div id="viewport" class="checker hidden">
       <canvas id="preview"></canvas>
       <div id="markSrc" class="mark src hidden"></div>
@@ -407,104 +322,253 @@
       </button>
     </div>
     <div id="info"></div>
-    <div id="layers" class="layers hidden">
-      <div class="panel-head"><h2>Ebenen</h2><span class="hint" style="margin:0">oben = vorne · ≡ ziehen = sortieren</span></div>
-      <ul id="layerList"></ul>
+  </section>
+
+  <section class="side panel">
+    <nav class="tabs" id="tabs" role="tablist">
+      <button type="button" role="tab" data-tab="layout" aria-selected="true">Anordnung</button>
+      <button type="button" role="tab" data-tab="image" id="tabImage" aria-selected="false">Bild</button>
+      <button type="button" role="tab" data-tab="list" id="tabList" aria-selected="false">Fotos</button>
+      <button type="button" role="tab" data-tab="export" aria-selected="false">Export</button>
+    </nav>
+
+    <!-- Reiter: Anordnung -->
+    <div class="tabpane" data-pane="layout">
+      <div class="seg" id="layoutSeg">
+        <button type="button" data-v="h" aria-pressed="true" title="Nebeneinander">▥ Neben</button>
+        <button type="button" data-v="v" aria-pressed="false" title="Untereinander">▤ Unter</button>
+        <button type="button" data-v="rows" aria-pressed="false" title="Raster in Zeilen">▦ Zeilen</button>
+        <button type="button" data-v="cols" aria-pressed="false" title="Raster in Spalten">▦ Spalten</button>
+        <button type="button" data-v="free" aria-pressed="false" title="Frei anordnen und übereinanderlegen">◫ Frei / Ebenen</button>
+      </div>
+
+      <div class="field hidden" id="perGroupField" style="margin-top:10px">
+        <label for="perGroup" id="perGroupLabel">Bilder pro Zeile</label>
+        <input id="perGroup" type="number" min="1" max="20" value="2">
+      </div>
+
+      <div class="hidden" id="freeField">
+        <div class="two" style="margin-top:10px">
+          <div class="field">
+            <label for="fitRatio">Format</label>
+            <select id="fitRatio">
+              <option value="free">Frei (eng)</option>
+              <option value="1:1">1:1 Quadrat</option>
+              <option value="4:5">4:5 Instagram</option>
+              <option value="5:4">5:4</option>
+              <option value="2:3">2:3 Hoch</option>
+              <option value="3:2">3:2 Quer</option>
+              <option value="3:4">3:4 Hoch</option>
+              <option value="4:3">4:3 Quer</option>
+              <option value="9:16">9:16 Story</option>
+              <option value="16:9">16:9 Breit</option>
+              <option value="21:9">21:9 Kino</option>
+            </select>
+          </div>
+          <div class="field">
+            <span class="label">Neue Fotos</span>
+            <div class="seg" id="placeSeg">
+              <button type="button" data-p="side" aria-pressed="true" title="Neben die vorhandenen legen">daneben</button>
+              <button type="button" data-p="over" aria-pressed="false" title="Mittig darüberlegen (überlagern)">darüber</button>
+            </div>
+          </div>
+        </div>
+        <label class="check"><input type="checkbox" id="autoFit"> <span><strong>Auto-Best-Fit</strong> · dicht anordnen, deine Größen bleiben</span></label>
+        <div class="seg">
+          <button type="button" id="bestFitBtn" title="Größen bleiben, dichteste Anordnung suchen">Best-Fit</button>
+          <button type="button" id="gaplessBtn" title="Größen angleichen, damit kein Hintergrund bleibt">Lückenlos</button>
+          <button type="button" id="freeReset" title="Alle Fotos wieder nebeneinander legen">Neu anordnen</button>
+        </div>
+      </div>
+
+      <label class="check" id="equalizeField" style="margin-top:10px">
+        <input type="checkbox" id="equalize">
+        <span id="equalizeText">Gleiche Höhe angleichen</span>
+      </label>
+
+      <div class="field" id="alignField">
+        <span class="label">Ausrichtung</span>
+        <div class="seg" id="alignSeg">
+          <button type="button" data-v="start" aria-pressed="false">Anfang</button>
+          <button type="button" data-v="center" aria-pressed="true">Mitte</button>
+          <button type="button" data-v="end" aria-pressed="false">Ende</button>
+        </div>
+      </div>
+
+      <div class="grp">
+        <div class="row">
+          <span class="label" style="margin:0">Hintergrund</span>
+          <input id="bgColor" type="color" value="#000000" aria-label="Hintergrundfarbe">
+          <label class="check" style="margin:0"><input type="checkbox" id="bgTransparent"> transparent</label>
+        </div>
+        <details id="spacing" class="spacing">
+          <summary>Abstand &amp; Rand (optional, Standard: aus)</summary>
+          <div class="field" id="gapField">
+            <label for="gap">Abstand zwischen Bildern: <span id="gapVal">0</span> px</label>
+            <input id="gap" type="range" min="0" max="200" value="0">
+          </div>
+          <div class="field">
+            <label for="margin">Rand außen: <span id="marginVal">0</span> px</label>
+            <input id="margin" type="range" min="0" max="300" value="0">
+          </div>
+        </details>
+      </div>
     </div>
-    <div id="freeTools" class="free-tools hidden">
-      <div class="ft-head"><strong id="ftName"></strong>
-        <button type="button" class="icon-btn" id="ftDeselect" title="Auswahl aufheben" aria-label="Auswahl aufheben">✕</button></div>
-      <div class="field">
-        <span class="label">Werkzeug (Pinsel = Teile weich verbergen / zurückholen)</span>
-        <div class="seg" id="ltTool">
-          <button type="button" data-t="move" aria-pressed="true">Bewegen</button>
-          <button type="button" data-t="hide" aria-pressed="false">🖌 Verbergen</button>
-          <button type="button" data-t="show" aria-pressed="false">🖌 Zurückholen</button>
+
+    <!-- Reiter: Bild (ausgewähltes Foto im Modus Frei / Ebenen) -->
+    <div class="tabpane hidden" data-pane="image">
+      <p class="hint" id="imgEmpty" style="margin:0">Foto in der Vorschau antippen, um es hier zu bearbeiten.</p>
+      <div id="freeTools" class="free-tools hidden">
+        <div class="ft-head">
+          <button type="button" class="ft-name" id="ftName" title="Antippen = umbenennen"></button>
+          <div class="ft-actions">
+            <button type="button" class="icon-btn" id="ftEdit" title="Bearbeiten: Ausschnitt, Drehen, Spiegeln (oder Foto gedrückt halten)" aria-label="Bearbeiten">✎</button>
+            <button type="button" class="icon-btn fav" id="ftFav" title="Als Favorit speichern (so wie es gerade aussieht)" aria-label="Als Favorit speichern">★</button>
+            <button type="button" class="icon-btn" id="ltDup" title="Duplizieren" aria-label="Duplizieren">⧉</button>
+            <button type="button" class="icon-btn del" id="ltDel" title="Löschen" aria-label="Löschen">🗑</button>
+            <button type="button" class="icon-btn" id="ftDeselect" title="Auswahl aufheben" aria-label="Auswahl aufheben">✕</button>
+          </div>
+        </div>
+
+        <div class="grp">
+          <div class="grp-t">Größe &amp; Lage</div>
+          <div class="ft-grid">
+            <span>Größe</span>
+            <button type="button" class="icon-btn" id="ftSMinus" aria-label="Kleiner">−</button>
+            <span class="ft-val" id="ftSVal">100 %</span>
+            <button type="button" class="icon-btn" id="ftSPlus" aria-label="Größer">+</button>
+            <button type="button" class="icon-btn" id="ftS1" title="Originalgröße">100 %</button>
+            <span>Winkel</span>
+            <button type="button" class="icon-btn" id="ftAMinus" aria-label="−0,1°">−</button>
+            <span class="ft-val" id="ftAVal">0,0°</span>
+            <button type="button" class="icon-btn" id="ftAPlus" aria-label="+0,1°">+</button>
+            <button type="button" class="icon-btn" id="ftA0" title="Gerade stellen">0°</button>
+          </div>
+          <div class="seg">
+            <button type="button" id="ftRotL" title="90° nach links">↺ 90°</button>
+            <button type="button" id="ftRotR" title="90° nach rechts">↻ 90°</button>
+            <button type="button" id="ftFront" title="Über die anderen legen">⬆ Vorne</button>
+            <button type="button" id="ftBack" title="Unter die anderen legen">⬇ Hinten</button>
+          </div>
+          <div class="seg" style="margin-top:4px">
+            <button type="button" id="ltUnstretch" title="Breite/Höhe wieder im Originalverhältnis">Verzerrung aufheben</button>
+            <button type="button" id="ltFit" title="In die Ebene darunter einpassen (zum Mischen)">Auf Ebene darunter</button>
+          </div>
+        </div>
+
+        <div class="grp">
+          <div class="grp-t">Überlagern</div>
+          <div class="two">
+            <div class="field">
+              <label for="ltOp">Deckkraft <span id="ltOpVal">100</span> %</label>
+              <input id="ltOp" type="range" min="0" max="100" value="100">
+            </div>
+            <div class="field">
+              <label for="ltBlend">Mischmodus</label>
+              <select id="ltBlend" title="Mischmodi wirken nur auf darunterliegende Ebenen">
+                <option value="source-over">Normal</option>
+                <option value="multiply">Multiplizieren</option>
+                <option value="screen">Negativ multipl.</option>
+                <option value="overlay">Ineinanderkopieren</option>
+                <option value="soft-light">Weiches Licht</option>
+                <option value="hard-light">Hartes Licht</option>
+                <option value="darken">Abdunkeln</option>
+                <option value="lighten">Aufhellen</option>
+                <option value="color-dodge">Farbig abwedeln</option>
+                <option value="color-burn">Farbig nachbelichten</option>
+                <option value="difference">Differenz</option>
+                <option value="exclusion">Ausschluss</option>
+                <option value="hue">Farbton</option>
+                <option value="saturation">Sättigung</option>
+                <option value="color">Farbe</option>
+                <option value="luminosity">Luminanz</option>
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <label for="ltFe">Weiche Kante <span id="ltFeVal">0</span> %</label>
+            <input id="ltFe" type="range" min="0" max="50" value="0">
+          </div>
+          <label class="check" style="margin:0"><input type="checkbox" id="ftGhost"> durchscheinend obenauf (nur Vorschau, zum Ausrichten)</label>
+        </div>
+
+        <div class="grp">
+          <div class="grp-t">Maske · Teile weich verbergen</div>
+          <div class="seg" id="ltTool">
+            <button type="button" data-t="move" aria-pressed="true">Bewegen</button>
+            <button type="button" data-t="hide" aria-pressed="false">🖌 Verbergen</button>
+            <button type="button" data-t="show" aria-pressed="false">🖌 Zurückholen</button>
+          </div>
+          <div id="ltBrush" class="hidden two" style="margin-top:8px">
+            <div class="field">
+              <label for="ltSize">Pinsel <span id="ltSizeVal">60</span> px</label>
+              <input id="ltSize" type="range" min="5" max="300" value="60">
+            </div>
+            <div class="field">
+              <label for="ltHard">Härte <span id="ltHardVal">50</span> %</label>
+              <input id="ltHard" type="range" min="0" max="100" value="50">
+            </div>
+          </div>
+          <div class="seg" style="margin-top:6px">
+            <button type="button" id="ltInvert">Maske umkehren</button>
+            <button type="button" id="ltClearMask">Maske löschen</button>
+          </div>
         </div>
       </div>
-      <div id="ltBrush" class="hidden">
-        <div class="field">
-          <label for="ltSize">Pinselgröße: <span id="ltSizeVal">60</span> px</label>
-          <input id="ltSize" type="range" min="5" max="300" value="60">
-        </div>
-        <div class="field">
-          <label for="ltHard">Härte: <span id="ltHardVal">50</span> %</label>
-          <input id="ltHard" type="range" min="0" max="100" value="50">
-        </div>
-        <p class="hint" style="margin:0 0 8px">Ein Finger malt, zwei Finger zoomen/verschieben die Ansicht. Tipp: ⛶ Vollbild für mehr Platz.</p>
+    </div>
+
+    <!-- Reiter: Fotos (Collage) bzw. Ebenen (Frei) -->
+    <div class="tabpane hidden" data-pane="list">
+      <ul id="thumbs"></ul>
+      <p class="hint hidden" id="listHint">≡ ziehen = sortieren · ✎ bearbeiten · ★ als Favorit speichern</p>
+      <div id="layers" class="layers hidden">
+        <p class="hint" style="margin:0 0 8px">oben = vorne · ≡ ziehen = sortieren · 👁 ein/aus · 🔒 Lage sperren</p>
+        <ul id="layerList"></ul>
       </div>
-      <div class="ft-grid">
-        <span>Größe</span>
-        <button type="button" class="icon-btn" id="ftSMinus" aria-label="Kleiner">−</button>
-        <span class="ft-val" id="ftSVal">100 %</span>
-        <button type="button" class="icon-btn" id="ftSPlus" aria-label="Größer">+</button>
-        <button type="button" class="icon-btn" id="ftS1" title="Originalgröße">100 %</button>
-        <span>Winkel</span>
-        <button type="button" class="icon-btn" id="ftAMinus" aria-label="−0,1°">−</button>
-        <span class="ft-val" id="ftAVal">0,0°</span>
-        <button type="button" class="icon-btn" id="ftAPlus" aria-label="+0,1°">+</button>
-        <button type="button" class="icon-btn" id="ftA0" title="Gerade stellen">0°</button>
-      </div>
-      <div class="seg">
-        <button type="button" id="ftRotL">↺ 90°</button>
-        <button type="button" id="ftRotR">↻ 90°</button>
-        <button type="button" id="ftFront" title="Über die anderen legen">Nach vorne</button>
-        <button type="button" id="ftBack" title="Unter die anderen legen">Nach hinten</button>
-        <button type="button" id="ftEdit">✎ Bearbeiten</button>
-      </div>
-      <label class="check" style="margin:8px 0 0"><input type="checkbox" id="ftGhost"> Ausgewähltes Foto durchscheinend obenauf (zum genauen Ausrichten, nur Vorschau)</label>
-      <div class="lt">
+    </div>
+
+    <!-- Reiter: Export -->
+    <div class="tabpane hidden" data-pane="export">
+      <div class="two">
         <div class="field">
-          <label for="ltOp">Deckkraft: <span id="ltOpVal">100</span> %</label>
-          <input id="ltOp" type="range" min="0" max="100" value="100">
-        </div>
-        <div class="field">
-          <label for="ltBlend">Mischmodus</label>
-          <select id="ltBlend">
-            <option value="source-over">Normal</option>
-            <option value="multiply">Multiplizieren</option>
-            <option value="screen">Negativ multiplizieren</option>
-            <option value="overlay">Ineinanderkopieren (Überlagern)</option>
-            <option value="soft-light">Weiches Licht</option>
-            <option value="hard-light">Hartes Licht</option>
-            <option value="darken">Abdunkeln</option>
-            <option value="lighten">Aufhellen</option>
-            <option value="color-dodge">Farbig abwedeln</option>
-            <option value="color-burn">Farbig nachbelichten</option>
-            <option value="difference">Differenz</option>
-            <option value="exclusion">Ausschluss</option>
-            <option value="hue">Farbton</option>
-            <option value="saturation">Sättigung</option>
-            <option value="color">Farbe</option>
-            <option value="luminosity">Luminanz</option>
+          <label for="format">Format</label>
+          <select id="format">
+            <option value="image/jpeg">JPEG</option>
+            <option value="image/png">PNG (verlustfrei)</option>
+            <option value="image/webp">WebP</option>
           </select>
         </div>
         <div class="field">
-          <label for="ltFe">Weiche Kante: <span id="ltFeVal">0</span> %</label>
-          <input id="ltFe" type="range" min="0" max="50" value="0">
+          <label for="maxSize">Max. Größe</label>
+          <select id="maxSize">
+            <option value="0">Original</option>
+            <option value="8000">8000 px</option>
+            <option value="4000">4000 px</option>
+            <option value="2048">2048 px</option>
+            <option value="1080">1080 px</option>
+          </select>
         </div>
-        <div class="seg">
-          <button type="button" id="ltInvert">Maske umkehren</button>
-          <button type="button" id="ltClearMask">Maske löschen</button>
-        </div>
-        <div class="seg" style="margin-top:6px">
-          <button type="button" id="ltUnstretch">Verzerrung aufheben</button>
-          <button type="button" id="ltFit">Auf Ebene darunter einpassen</button>
-        </div>
-        <div class="seg" style="margin-top:6px">
-          <button type="button" id="ltRename">Umbenennen</button>
-          <button type="button" id="ltDup">Duplizieren</button>
-          <button type="button" id="ltDel">Löschen</button>
-        </div>
-        <p class="hint">Mischmodi wirken nur auf darunterliegende Ebenen, nicht auf den Hintergrund.
-          Zwei Fotos mischen: obere Ebene „Auf Ebene darunter einpassen“, dann Deckkraft regeln.</p>
       </div>
+      <div class="field" id="qualityField">
+        <label for="quality">Qualität: <span id="qualityVal">95</span> %</label>
+        <input id="quality" type="range" min="50" max="100" value="95">
+      </div>
+      <button class="primary" id="downloadBtn" disabled>⬇ Bild herunterladen</button>
+      <button class="secondary hidden" id="shareBtn" disabled>Teilen / in Galerie speichern …</button>
+      <button class="secondary" id="clearBtn">Alle Fotos entfernen</button>
     </div>
-    <p class="hint hidden" id="gestureHint"></p>
+
+    <details class="help">
+      <summary>Bedienung &amp; Tipps</summary>
+      <p class="hint hidden" id="gestureHint"></p>
+      <p class="hint">Foto gedrückt halten &amp; loslassen oder 3× tippen = bearbeiten (Ausschnitt, Drehen, Spiegeln) ·
+        ★ speichert das Foto so, wie es gerade aussieht, dauerhaft als Favorit. Alles läuft lokal, nichts wird hochgeladen.</p>
+    </details>
   </section>
 </main>
+<div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-<dialog id="editor" aria-labelledby="edTitle">
+<dialog id="editor" class="sheet" aria-labelledby="edTitle">
   <div class="ed">
     <div class="ed-head"><strong id="edTitle">Foto bearbeiten</strong><span id="edName"></span></div>
     <div class="ed-body">
@@ -550,13 +614,26 @@
           <button type="button" data-a="9:16" aria-pressed="false">9:16</button>
         </div>
       </div>
-      <div class="ed-result"><canvas id="edResult" class="checker"></canvas><span id="edInfo"></span></div>
+      <div class="ed-result"><canvas id="edResult" class="checker"></canvas><span id="edInfo"></span>
+        <button type="button" class="icon-btn fav" id="edFav" title="Diesen Ausschnitt als Favorit speichern">★ Favorit</button></div>
     </div>
     <div class="ed-foot">
       <button type="button" class="secondary" id="edReset">Zurücksetzen</button>
       <button type="button" class="secondary" id="edCancel">Abbrechen</button>
       <button type="button" class="primary" id="edApply">Übernehmen</button>
     </div>
+  </div>
+</dialog>
+
+<dialog id="favDlg" class="sheet" aria-labelledby="favTitle">
+  <div class="ed">
+    <div class="ed-head"><strong id="favTitle">★ Favoriten</strong><span>Antippen = einfügen</span></div>
+    <div class="ed-body">
+      <p class="hint hidden" id="favEmpty" style="margin:0">Noch keine Favoriten. Foto bearbeiten (z. B. Gesicht ausschneiden),
+        dann ★ antippen – es bleibt hier gespeichert, auch nach dem Schließen der App.</p>
+      <div id="favGrid" class="fav-grid"></div>
+    </div>
+    <div class="ed-foot"><button type="button" class="primary" id="favClose">Fertig</button></div>
   </div>
 </dialog>
 
@@ -629,7 +706,10 @@
     ltOp: $('ltOp'), ltOpVal: $('ltOpVal'), ltBlend: $('ltBlend'), ltFe: $('ltFe'), ltFeVal: $('ltFeVal'),
     ltTool: $('ltTool'), ltBrush: $('ltBrush'), ltSize: $('ltSize'), ltSizeVal: $('ltSizeVal'), ltHard: $('ltHard'),
     ltHardVal: $('ltHardVal'), ltInvert: $('ltInvert'), ltClearMask: $('ltClearMask'), ltUnstretch: $('ltUnstretch'),
-    ltFit: $('ltFit'), ltRename: $('ltRename'), ltDup: $('ltDup'), ltDel: $('ltDel'),
+    ltFit: $('ltFit'), ltDup: $('ltDup'), ltDel: $('ltDel'),
+    tabs: $('tabs'), tabImage: $('tabImage'), tabList: $('tabList'), imgEmpty: $('imgEmpty'), quickSave: $('quickSave'),
+    favBtn: $('favBtn'), favCount: $('favCount'), favDlg: $('favDlg'), favGrid: $('favGrid'), favEmpty: $('favEmpty'),
+    favClose: $('favClose'), ftFav: $('ftFav'), edFav: $('edFav'), toast: $('toast'),
     ftRotL: $('ftRotL'), ftRotR: $('ftRotR'), ftFront: $('ftFront'), ftBack: $('ftBack'), ftEdit: $('ftEdit'), ftGhost: $('ftGhost'),
     gap: $('gap'), gapVal: $('gapVal'), margin: $('margin'), marginVal: $('marginVal'),
     bgColor: $('bgColor'), bgTransparent: $('bgTransparent'),
@@ -931,6 +1011,7 @@
       meta.append(name, dim);
       li.append(grip, th, meta,
         mk('✎', 'Bearbeiten (drehen, spiegeln, Ausschnitt)', '', () => openEditor(it.id)),
+        mk('★', 'Als Favorit speichern', 'fav', () => saveFavorite(it)),
         mk('✕', 'Entfernen', 'del', () => removeImage(it.id)));
       return li;
     }));
@@ -1945,6 +2026,7 @@
     els.gestureHint.classList.toggle('hidden', !has);
     els.downloadBtn.disabled = !has || exporting;
     els.shareBtn.disabled = !has || exporting;
+    els.quickSave.disabled = !has || exporting;
     if (!has) {
       cur = null;
       if (els.previewPanel.classList.contains('fs')) toggleFullscreen(false);
@@ -2000,7 +2082,9 @@
       vp.style.height = '';
       vpH = vp.clientHeight || 1;
     } else {
-      const maxH = Math.min(window.innerHeight * (coarse ? 0.6 : 0.72), 900);
+      const maxH = coarse || window.innerWidth <= 820
+        ? Math.min(window.innerHeight * 0.42, 600)            // Handy: Vorschau bleibt oben stehen
+        : Math.max(240, Math.min(window.innerHeight - 190, 900));
       vpH = Math.max(coarse ? 220 : 120, Math.round(Math.min(maxH, (vpW - 2 * pad) * cur.fullH / cur.fullW + 2 * pad)));
       vp.style.height = vpH + 'px';
     }
@@ -2111,6 +2195,7 @@
   function select(id) {
     if (selId === id) return;
     selId = id;
+    if (id !== null && state.layout === 'free' && activeTab !== 'list') setTab('image');
     if (tool !== 'move') { tool = 'move'; updateToolUI(); } // Pinsel nicht versehentlich auf anderer Ebene
     if (ghost) render();
     updateFreeTools();
@@ -2140,6 +2225,9 @@
       width: b.w * k + 'px', height: b.h * k + 'px', transform: `rotate(${it.free.a}deg)`,
     });
     els.sel.classList.toggle('small', Math.min(b.w, b.h) * k < 56);
+    // Dreh-Griff unter das Foto, wenn oben kein Platz ist (z. B. schmale Handys)
+    const topY = c.y - b.bh * k / 2, botY = c.y + b.bh * k / 2;
+    els.sel.classList.toggle('rot-below', topY < 46 && view.vpH - botY > topY);
     els.sel.classList.toggle('locked', !!it.layer.locked);
     els.sel.classList.toggle('brush', tool !== 'move');
     els.sel.classList.remove('hidden');
@@ -2149,6 +2237,7 @@
     const it = selItem();
     const show = state.layout === 'free' && !!it && !!it.free && images.length > 0;
     els.freeTools.classList.toggle('hidden', !show);
+    els.imgEmpty.classList.toggle('hidden', show);
     if (!show) return;
     const L = it.layer, f = it.free;
     els.ftName.textContent = layerName(it) + (L.locked ? ' (gesperrt)' : '');
@@ -2253,6 +2342,7 @@
     const free = state.layout === 'free';
     if (ptrs.size === 2) {
       if (gest) clearTimeout(gest.lp);
+      els.sel.classList.remove('held');
       hideMarks();
       if (gest && (gest.type === 'fhandle' || gest.type === 'fresize')) return;
       const [a, b] = [...ptrs.values()];
@@ -2332,7 +2422,15 @@
         const hitItem = images[hit];
         select(hitItem.id);
         startLock();
-        gest = { type: 'fpending', id: e.pointerId, it: hitItem, x0: p.x, y0: p.y, hit, f0: { ...hitItem.free } };
+        const fg = { type: 'fpending', id: e.pointerId, it: hitItem, x0: p.x, y0: p.y, hit, f0: { ...hitItem.free }, lp: 0, held: false };
+        fg.lp = setTimeout(() => {
+          if (gest !== fg || fg.type !== 'fpending') return;
+          fg.held = true;
+          navigator.vibrate?.(15);
+          els.sel.classList.add('held');
+          toast('Loslassen = bearbeiten', 1400);
+        }, 500);
+        gest = fg;
         return;
       }
     }
@@ -2341,13 +2439,15 @@
       touch: e.pointerType !== 'mouse', hit, target: -1, lp: 0,
     };
     gest = g;
-    if (!free && g.touch && g.hit >= 0 && images.length > 1) {
+    if (!free && g.hit >= 0) {
+      // Gedrückt halten: loslassen = bearbeiten, weiterziehen = mit anderem Foto tauschen
       g.lp = setTimeout(() => {
         if (gest !== g || g.type !== 'pending') return;
         g.type = 'drag';
+        g.held = true; g.hx = g.lx; g.hy = g.ly;
         navigator.vibrate?.(15);
         showMarks(g.hit, -1);
-        els.gestureHint.textContent = 'Jetzt auf ein anderes Foto ziehen – die beiden werden getauscht.';
+        toast(images.length > 1 ? 'Loslassen = bearbeiten · auf anderes Foto ziehen = tauschen' : 'Loslassen = bearbeiten', 1600);
       }, 450);
     }
   });
@@ -2445,6 +2545,8 @@
       if (g.type === 'fpending') {
         // Finger zittern beim Tippen – erst ab 10 px (Maus 4 px) verschieben, ohne Sprung
         if (Math.hypot(p.x - g.x0, p.y - g.y0) < (e.pointerType === 'mouse' ? 4 : 10)) return;
+        clearTimeout(g.lp);
+        els.sel.classList.remove('held');
         g.type = 'fmove';
         g.x0 = p.x; g.y0 = p.y;
       }
@@ -2478,6 +2580,7 @@
       g.vy = dcy / Math.max(1, now - (g.t || now - 16)); // px/ms für Schwung
       g.t = now;
     } else if (g.type === 'drag') {
+      if (g.held && !g.moved && Math.hypot(p.x - g.hx, p.y - g.hy) > 10) g.moved = true;
       const t = hitIndex(e.clientX, e.clientY);
       g.target = t;
       showMarks(g.hit, t !== g.hit ? t : -1);
@@ -2513,8 +2616,12 @@
       hideMarks();
       if (g.type === 'fmove' && e.type === 'pointerup' && state.autoFit) fitDropped = g.it;
       endLock();
+      clearTimeout(g.lp);
+      els.sel.classList.remove('held');
       if (g.type !== 'fpending') { if (g.type !== 'fmove') renderThumbs(); commit(); updateFreeTools(); }
-      else if (e.type === 'pointerup') handleTap(g, false);
+      else if (e.type === 'pointerup') {
+        if (g.held) { lastTap = null; openEditor(g.it.id); } else handleTap(g, false);
+      }
       return;
     }
     clearTimeout(g.lp);
@@ -2523,7 +2630,10 @@
     }
     if (e.type === 'pointerup') {
       if (g.type === 'pending') handleTap(g, state.layout !== 'free');
-      else if (g.type === 'drag' && g.target >= 0 && g.target !== g.hit && images[g.hit] === cur?.layout.rects[g.hit]?.item) {
+      else if (g.type === 'drag' && g.held && !g.moved) {
+        const id = images[g.hit]?.id;
+        if (id !== undefined) openEditor(id);
+      } else if (g.type === 'drag' && g.target >= 0 && g.target !== g.hit && images[g.hit] === cur?.layout.rects[g.hit]?.item) {
         const a = g.hit, b = g.target;
         [images[a], images[b]] = [images[b], images[a]];
         renderThumbs(); render(); commit();
@@ -2610,9 +2720,11 @@
     els.equalizeField.classList.toggle('hidden', free);
     els.gapField.classList.toggle('hidden', free);
     els.perGroupLabel.textContent = state.layout === 'cols' ? 'Bilder pro Spalte' : 'Bilder pro Zeile';
-    els.equalizeText.textContent = vertical
-      ? 'Gleiche Breite angleichen (Bilder skalieren statt Originalpixel)'
-      : 'Gleiche Höhe angleichen (Bilder skalieren statt Originalpixel)';
+    els.equalizeText.textContent = vertical ? 'Gleiche Breite angleichen' : 'Gleiche Höhe angleichen';
+    // Reiter: "Bild" nur im Modus Frei/Ebenen; Liste heißt dort "Ebenen"
+    els.tabImage.classList.toggle('hidden', !free);
+    els.tabList.textContent = free ? 'Ebenen' : 'Fotos';
+    if (!free && activeTab === 'image') setTab('layout');
     els.alignField.classList.toggle('hidden', free || (state.equalize && groupsFor(images).length <= 1));
     els.gapVal.textContent = state.gap;
     els.marginVal.textContent = state.margin;
@@ -2623,11 +2735,11 @@
     for (const b of els.alignSeg.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === state.align));
     els.gestureHint.textContent = free
       ? (coarse
-        ? 'Foto antippen = auswählen · 3× tippen = bearbeiten · ziehen = verschieben · Punkte an Ecken = Größe, an Kanten = Breite/Höhe, ◯ oben = drehen · 2 Finger auf dem ausgewählten Foto = zoomen & drehen · Doppeltipp / +/− = Ansicht zoomen'
-        : 'Foto anklicken = auswählen · ziehen = verschieben · Griff ◢ = drehen & skalieren (Umschalt = frei) · Pfeiltasten = 1 px · Mausrad = Ansicht zoomen')
+        ? 'Foto antippen = auswählen · ziehen = verschieben · gedrückt halten & loslassen = bearbeiten · Punkte an Ecken = Größe, an Kanten = Breite/Höhe, ◯ oben = drehen · 2 Finger auf dem ausgewählten Foto = zoomen & drehen · Doppeltipp / +/− = Ansicht zoomen'
+        : 'Foto anklicken = auswählen · ziehen = verschieben · gedrückt halten & loslassen = bearbeiten · Punkte an Ecken/Kanten = Größe · ◯ = drehen (Umschalt = frei) · Pfeiltasten = 1 px · Mausrad = Ansicht zoomen')
       : coarse
-      ? 'Zwei Finger auf EINEM Foto = nur dieses Foto größer/kleiner · Antippen oder 3× tippen = bearbeiten · Doppeltipp / +/− = Ansicht zoomen · gedrückt halten & ziehen = tauschen'
-      : 'Klick = Foto bearbeiten · Doppelklick / Mausrad = zoomen · Ziehen = Fotos tauschen (gezoomt: verschieben)';
+      ? 'Antippen oder gedrückt halten & loslassen = bearbeiten · gedrückt halten & ziehen = tauschen · zwei Finger auf EINEM Foto = nur dieses größer/kleiner · Doppeltipp / +/− = Ansicht zoomen'
+      : 'Klick oder gedrückt halten & loslassen = bearbeiten · Ziehen = Fotos tauschen (gezoomt: verschieben) · Doppelklick / Mausrad = zoomen';
   }
 
   // ---------- Editor (drehen, spiegeln, begradigen, Ausschnitt) ----------
@@ -2947,6 +3059,197 @@
   els.edApply.addEventListener('click', () => closeEditor(true));
   els.editor.addEventListener('close', () => { if (!els.editor.open) { ed.it = null; ed.drag = null; edPtrs.clear(); } });
 
+  // ---------- Reiter ----------
+  const TAB_KEY = 'fotoMerge.tab';
+  let activeTab = 'layout';
+  try { const t = localStorage.getItem(TAB_KEY); if (['layout', 'image', 'list', 'export'].includes(t)) activeTab = t; } catch { /* egal */ }
+  function setTab(t) {
+    if (t === 'image' && state.layout !== 'free') t = 'layout';
+    activeTab = t;
+    for (const b of els.tabs.querySelectorAll('button')) b.setAttribute('aria-selected', String(b.dataset.tab === t));
+    for (const pn of document.querySelectorAll('.tabpane')) pn.classList.toggle('hidden', pn.dataset.pane !== t);
+    try { localStorage.setItem(TAB_KEY, t); } catch { /* egal */ }
+  }
+  els.tabs.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-tab]');
+    if (b) setTab(b.dataset.tab);
+  });
+
+  // ---------- Kurzmeldung ----------
+  let toastTimer = 0;
+  function toast(msg, ms = 2200) {
+    els.toast.textContent = msg;
+    els.toast.classList.remove('hidden');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => els.toast.classList.add('hidden'), ms);
+  }
+
+  // ---------- Favoriten: fertig bearbeitete Fotos dauerhaft im Browser-Speicher (IndexedDB) ----------
+  // Gespeichert wird das fertige Ergebnis (Ausschnitt, Drehung, Spiegelung, Begradigung, gemalte Maske/weiche
+  // Kante als Transparenz) in Originalauflösung – beim Einfügen ist es ein ganz normales neues Foto.
+  const FAV_DB = 'fotoMergeFavorites';
+  let favDbPromise = null;
+  let favCache = [];
+  let favUrls = [];
+  function favDb() {
+    if (!favDbPromise) {
+      favDbPromise = new Promise((res, rej) => {
+        if (!('indexedDB' in window)) { rej(new Error('idb')); return; }
+        const rq = indexedDB.open(FAV_DB, 1);
+        rq.onupgradeneeded = () => rq.result.createObjectStore('favs', { keyPath: 'id', autoIncrement: true });
+        rq.onsuccess = () => res(rq.result);
+        rq.onerror = () => rej(rq.error);
+      });
+      favDbPromise.catch(() => { favDbPromise = null; });
+    }
+    return favDbPromise;
+  }
+  function favTx(mode, fn) {
+    return favDb().then((db) => new Promise((res, rej) => {
+      const tx = db.transaction('favs', mode);
+      let out;
+      const q = fn(tx.objectStore('favs'));
+      if (q) q.onsuccess = () => { out = q.result; };
+      tx.oncomplete = () => res(out);
+      tx.onerror = tx.onabort = () => rej(tx.error);
+    }));
+  }
+  const favAll = () => favTx('readonly', (st) => st.getAll());
+  const favAdd = (rec) => favTx('readwrite', (st) => st.add(rec));
+  const favRemove = (id) => favTx('readwrite', (st) => st.delete(id));
+  const canvasToBlob = (c, type, q) => new Promise((res) => c.toBlob(res, type, q));
+
+  async function refreshFavs() {
+    try { favCache = await favAll(); } catch { favCache = []; }
+    els.favCount.textContent = String(favCache.length);
+    els.favCount.classList.toggle('hidden', !favCache.length);
+    if (els.favDlg.open) renderFavGrid();
+  }
+
+  /** Foto mit Bearbeitung als fertiges Bild rendern (Originalauflösung des Ausschnitts). */
+  async function renderFinished(it, e) {
+    const d = dims(it, e);
+    const L = it.layer || {};
+    const alpha = !!e.angle || !!L.mask || L.feather > 0; // dann mit Transparenz (PNG)
+    let s = Math.min(1, 8192 / Math.max(d.w, d.h), Math.sqrt(40e6 / (d.w * d.h)));
+    for (let tries = 0; tries < 6; tries++, s *= 0.75) {
+      const W = Math.max(1, Math.round(d.w * s)), H = Math.max(1, Math.round(d.h * s));
+      const c = document.createElement('canvas');
+      if (!canvasUsable(c, W, H)) continue;
+      const ctx = c.getContext('2d');
+      ctx.clearRect(0, 0, W, H);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      drawItem(ctx, it, e, 0, 0, W, H, false);
+      if (L.mask) {
+        ctx.globalCompositeOperation = 'destination-in';
+        drawItem(ctx, it, e, 0, 0, W, H, false, { src: L.mask.canvas, rx: L.mask.rx, ry: L.mask.ry });
+      }
+      if (L.feather > 0) {
+        ctx.globalCompositeOperation = 'destination-in';
+        featherPass(ctx, W / 2, H / 2, W / 2, H / 2, 0, L.feather);
+      }
+      ctx.globalCompositeOperation = 'source-over';
+      const blob = await canvasToBlob(c, alpha ? 'image/png' : 'image/jpeg', 0.95);
+      c.width = c.height = 0;
+      if (blob) return { blob, w: W, h: H };
+    }
+    throw new Error('render');
+  }
+
+  async function makeFavThumb(blob) {
+    const img = new Image();
+    const u = URL.createObjectURL(blob);
+    try {
+      img.src = u;
+      await img.decode();
+      const S = 200, r = Math.min(1, S / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(img.naturalWidth * r));
+      c.height = Math.max(1, Math.round(img.naturalHeight * r));
+      const x = c.getContext('2d');
+      x.imageSmoothingQuality = 'high';
+      x.drawImage(img, 0, 0, c.width, c.height);
+      return await canvasToBlob(c, 'image/png');
+    } finally { URL.revokeObjectURL(u); }
+  }
+
+  /** ★: Foto so, wie es gerade aussieht (bzw. mit der Bearbeitung e), dauerhaft als Favorit speichern. */
+  async function saveFavorite(it, e = it.edit) {
+    if (!it) return;
+    toast('Speichere Favorit …', 4000);
+    try {
+      const res = await renderFinished(it, e);
+      const thumb = await makeFavThumb(res.blob);
+      const base = layerName(it).replace(/\.[a-z0-9]{2,5}$/i, '');
+      const name = /Ausschnitt/.test(base) || !isCropped(e.crop) ? base : base + ' (Ausschnitt)';
+      await favAdd({ name, blob: res.blob, thumb, w: res.w, h: res.h, created: Date.now() });
+      navigator.storage?.persist?.().catch(() => {}); // Browser bitten, die Favoriten nicht automatisch zu löschen
+      await refreshFavs();
+      toast(`★ „${name}“ als Favorit gespeichert`);
+    } catch {
+      toast('Favorit konnte nicht gespeichert werden (Speicher voll oder nicht verfügbar).', 3500);
+    }
+  }
+
+  async function insertFavorite(rec) {
+    const ext = rec.blob.type === 'image/png' ? 'png' : 'jpg';
+    await addFiles([new File([rec.blob], `${rec.name}.${ext}`, { type: rec.blob.type })]);
+  }
+
+  function renderFavGrid() {
+    for (const u of favUrls) URL.revokeObjectURL(u);
+    favUrls = [];
+    els.favEmpty.classList.toggle('hidden', favCache.length > 0);
+    els.favGrid.replaceChildren(...favCache.slice().reverse().map((rec) => {
+      const tile = document.createElement('div');
+      tile.className = 'fav';
+      tile.title = `${rec.name} – ${rec.w} × ${rec.h} px · antippen = einfügen`;
+      const img = document.createElement('img');
+      const u = URL.createObjectURL(rec.thumb || rec.blob);
+      favUrls.push(u);
+      img.src = u;
+      img.alt = rec.name;
+      img.className = 'checker';
+      const nm = document.createElement('div');
+      nm.className = 'nm';
+      nm.textContent = rec.name;
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'icon-btn del fav-del';
+      del.textContent = '✕';
+      del.title = 'Favorit löschen';
+      del.setAttribute('aria-label', 'Favorit löschen');
+      del.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        if (!confirm(`Favorit „${rec.name}“ löschen?`)) return;
+        try { await favRemove(rec.id); } catch { /* egal */ }
+        refreshFavs();
+      });
+      tile.addEventListener('click', async () => {
+        tile.classList.add('added');
+        await insertFavorite(rec);
+        setTimeout(() => tile.classList.remove('added'), 900);
+      });
+      tile.append(img, nm, del);
+      return tile;
+    }));
+  }
+
+  els.favBtn.addEventListener('click', async () => {
+    await refreshFavs();
+    renderFavGrid();
+    if (!els.favDlg.open) els.favDlg.showModal();
+  });
+  els.favClose.addEventListener('click', () => els.favDlg.close());
+  els.ftFav.addEventListener('click', () => { const it = selItem(); if (it) saveFavorite(it); });
+  els.edFav.addEventListener('click', () => { if (ed.it) saveFavorite(ed.it, ed.e); });
+  els.quickSave.addEventListener('click', () => download('save'));
+  els.empty.addEventListener('click', () => els.fileInput.click());
+  els.empty.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); els.fileInput.click(); }
+  });
+
   // ---------- Export ----------
 
   /** mode: 'save' = Datei herunterladen, 'share' = Teilen-Menü des Handys (Fallback: herunterladen). */
@@ -3148,7 +3451,7 @@
   });
   els.ltUnstretch.addEventListener('click', () => ftApply((f) => { delete f.sx; delete f.sy; }));
   els.ltFit.addEventListener('click', () => { const it = selItem(); if (it && !it.layer.locked) fitToBelow(it); });
-  els.ltRename.addEventListener('click', () => {
+  els.ftName.addEventListener('click', () => {
     const it = selItem(); if (!it) return;
     const n = prompt('Name der Ebene:', layerName(it));
     if (n === null) return;
@@ -3311,14 +3614,17 @@
       finishStroke(st);
     },
     get tool() { return tool; },
+    saveFavorite, refreshFavs, setTab, get favs() { return favCache; }, get activeTab() { return activeTab; },
     get selId() { return selId; },
     openEditor, closeEditor, ed, undo, redo, zoomAt, get history() { return history; }, get hIndex() { return hIndex; },
   };
 
   loadSettings();
   syncInputs();
+  setTab(activeTab);
   commit();
   render();
+  refreshFavs();
 })();
 </script>
 </body>
