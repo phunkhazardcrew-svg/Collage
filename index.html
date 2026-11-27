@@ -61,6 +61,8 @@
     .side { margin: 10px; }
   }
   .side.panel { padding: 0; overflow: hidden; }
+  @media (max-width: 820px) and (max-height: 500px) { .stage { position: static; } }
+  .ft-name::after { content: ' ✎'; color: var(--muted); font-weight: 400; }
   .tabs { display: flex; border-bottom: 1px solid var(--border); }
   .tabs button {
     flex: 1; padding: 11px 4px; border: 0; border-bottom: 2px solid transparent; background: transparent;
@@ -180,9 +182,10 @@
   #info.warn { color: var(--danger); }
   /* Vollbild: Vorschau groß, Werkzeuge unten scrollbar */
   #previewPanel.fs {
-    position: fixed; inset: 0; z-index: 50; margin: 0; padding: 6px; max-width: none; background: var(--bg);
-    display: flex; flex-direction: column; gap: 6px;
+    position: fixed; inset: 52px 0 0 0; z-index: 50; margin: 0; padding: 6px; max-width: none; background: var(--bg);
+    display: flex; flex-direction: column; align-items: stretch; gap: 6px;
   }
+  #previewPanel.fs .tabs { position: sticky; top: 0; z-index: 1; background: var(--panel); }
   #previewPanel.fs .stage { position: static; flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0; border: 0; }
   #previewPanel.fs #viewport { flex: 1; height: auto !important; min-height: 30vh; }
   #previewPanel.fs .side { flex: none; max-height: 40vh; overflow: auto; margin: 0; }
@@ -278,10 +281,10 @@
   <h1>Foto-Merge</h1>
   <div class="tb-actions">
     <div id="drop" class="tb-btn accent" role="button" tabindex="0" title="Fotos hinzufügen (auch hierher ziehen oder Strg+V)">＋ <span>Fotos</span></div>
-    <button type="button" class="tb-btn" id="favBtn" title="Favoriten – gespeicherte Ausschnitte einfügen">★ <span class="lbl">Favoriten</span><b id="favCount" class="badge hidden">0</b></button>
+    <button type="button" class="tb-btn" id="favBtn" title="Favoriten – gespeicherte Ausschnitte einfügen" aria-label="Favoriten">★ <span class="lbl">Favoriten</span><b id="favCount" class="badge hidden">0</b></button>
     <button type="button" class="tb-btn icon" id="undoBtn" title="Rückgängig (Strg+Z)" aria-label="Rückgängig" disabled>↶</button>
     <button type="button" class="tb-btn icon" id="redoBtn" title="Wiederholen (Strg+Y)" aria-label="Wiederholen" disabled>↷</button>
-    <button type="button" class="tb-btn" id="quickSave" title="Bild speichern" disabled>⬇ <span class="lbl">Speichern</span></button>
+    <button type="button" class="tb-btn" id="quickSave" title="Bild speichern" aria-label="Bild speichern" disabled>⬇ <span class="lbl">Speichern</span></button>
   </div>
   <input id="fileInput" type="file" accept="image/*" multiple>
 </header>
@@ -327,18 +330,18 @@
   <section class="side panel">
     <nav class="tabs" id="tabs" role="tablist">
       <button type="button" role="tab" data-tab="layout" aria-selected="true">Anordnung</button>
-      <button type="button" role="tab" data-tab="image" id="tabImage" aria-selected="false">Bild</button>
+      <button type="button" role="tab" data-tab="image" id="tabImage" aria-selected="false">Foto</button>
       <button type="button" role="tab" data-tab="list" id="tabList" aria-selected="false">Fotos</button>
-      <button type="button" role="tab" data-tab="export" aria-selected="false">Export</button>
+      <button type="button" role="tab" data-tab="export" aria-selected="false">Speichern</button>
     </nav>
 
     <!-- Reiter: Anordnung -->
     <div class="tabpane" data-pane="layout">
       <div class="seg" id="layoutSeg">
-        <button type="button" data-v="h" aria-pressed="true" title="Nebeneinander">▥ Neben</button>
-        <button type="button" data-v="v" aria-pressed="false" title="Untereinander">▤ Unter</button>
-        <button type="button" data-v="rows" aria-pressed="false" title="Raster in Zeilen">▦ Zeilen</button>
-        <button type="button" data-v="cols" aria-pressed="false" title="Raster in Spalten">▦ Spalten</button>
+        <button type="button" data-v="h" aria-pressed="true" title="Nebeneinander">▥ Nebeneinander</button>
+        <button type="button" data-v="v" aria-pressed="false" title="Untereinander">▤ Untereinander</button>
+        <button type="button" data-v="rows" aria-pressed="false" title="Raster in Zeilen">▦ Raster Zeilen</button>
+        <button type="button" data-v="cols" aria-pressed="false" title="Raster in Spalten">▦ Raster Spalten</button>
         <button type="button" data-v="free" aria-pressed="false" title="Frei anordnen und übereinanderlegen">◫ Frei / Ebenen</button>
       </div>
 
@@ -373,10 +376,10 @@
             </div>
           </div>
         </div>
-        <label class="check"><input type="checkbox" id="autoFit"> <span><strong>Auto-Best-Fit</strong> · dicht anordnen, deine Größen bleiben</span></label>
+        <label class="check"><input type="checkbox" id="autoFit"> <span><strong>Automatisch dicht anordnen</strong> · deine Größen bleiben</span></label>
         <div class="seg">
-          <button type="button" id="bestFitBtn" title="Größen bleiben, dichteste Anordnung suchen">Best-Fit</button>
-          <button type="button" id="gaplessBtn" title="Größen angleichen, damit kein Hintergrund bleibt">Lückenlos</button>
+          <button type="button" id="bestFitBtn" title="Größen bleiben, dichteste Anordnung suchen (wenig Hintergrund)">Dicht anordnen</button>
+          <button type="button" id="gaplessBtn" title="Größen angleichen, damit gar kein Hintergrund bleibt">Lückenlos füllen</button>
           <button type="button" id="freeReset" title="Alle Fotos wieder nebeneinander legen">Neu anordnen</button>
         </div>
       </div>
@@ -452,7 +455,7 @@
           </div>
           <div class="seg" style="margin-top:4px">
             <button type="button" id="ltUnstretch" title="Breite/Höhe wieder im Originalverhältnis">Verzerrung aufheben</button>
-            <button type="button" id="ltFit" title="In die Ebene darunter einpassen (zum Mischen)">Auf Ebene darunter</button>
+            <button type="button" id="ltFit" title="In das Foto darunter einpassen (zum Mischen zweier Fotos)">An Foto darunter anpassen</button>
           </div>
         </div>
 
@@ -627,7 +630,7 @@
 
 <dialog id="favDlg" class="sheet" aria-labelledby="favTitle">
   <div class="ed">
-    <div class="ed-head"><strong id="favTitle">★ Favoriten</strong><span>Antippen = einfügen</span></div>
+    <div class="ed-head"><strong id="favTitle">★ Favoriten</strong><span id="favSub">Antippen = einfügen</span></div>
     <div class="ed-body">
       <p class="hint hidden" id="favEmpty" style="margin:0">Noch keine Favoriten. Foto bearbeiten (z. B. Gesicht ausschneiden),
         dann ★ antippen – es bleibt hier gespeichert, auch nach dem Schließen der App.</p>
@@ -709,7 +712,7 @@
     ltFit: $('ltFit'), ltDup: $('ltDup'), ltDel: $('ltDel'),
     tabs: $('tabs'), tabImage: $('tabImage'), tabList: $('tabList'), imgEmpty: $('imgEmpty'), quickSave: $('quickSave'),
     favBtn: $('favBtn'), favCount: $('favCount'), favDlg: $('favDlg'), favGrid: $('favGrid'), favEmpty: $('favEmpty'),
-    favClose: $('favClose'), ftFav: $('ftFav'), edFav: $('edFav'), toast: $('toast'),
+    favClose: $('favClose'), favSub: $('favSub'), ftFav: $('ftFav'), edFav: $('edFav'), toast: $('toast'),
     ftRotL: $('ftRotL'), ftRotR: $('ftRotR'), ftFront: $('ftFront'), ftBack: $('ftBack'), ftEdit: $('ftEdit'), ftGhost: $('ftGhost'),
     gap: $('gap'), gapVal: $('gapVal'), margin: $('margin'), marginVal: $('marginVal'),
     bgColor: $('bgColor'), bgTransparent: $('bgTransparent'),
@@ -887,7 +890,7 @@
         const w = img.naturalWidth, h = img.naturalHeight;
         if (!w || !h) { URL.revokeObjectURL(url); resolve(null); return; }
         try {
-          resolve({ id: nextId++, name: file.name || 'Eingefügtes Bild', img, url, w, h, small: makeSmall(img, w, h), edit: newEdit(), free: null, layer: newLayer() });
+          resolve({ id: nextId++, name: file.name || 'Eingefügtes Bild', type: file.type || '', img, url, w, h, small: makeSmall(img, w, h), edit: newEdit(), free: null, layer: newLayer() });
         } catch {
           URL.revokeObjectURL(url); resolve(null);
         }
@@ -2085,7 +2088,7 @@
       const maxH = coarse || window.innerWidth <= 820
         ? Math.min(window.innerHeight * 0.42, 600)            // Handy: Vorschau bleibt oben stehen
         : Math.max(240, Math.min(window.innerHeight - 190, 900));
-      vpH = Math.max(coarse ? 220 : 120, Math.round(Math.min(maxH, (vpW - 2 * pad) * cur.fullH / cur.fullW + 2 * pad)));
+      vpH = Math.max(Math.min(coarse ? 220 : 120, window.innerHeight * 0.45), Math.round(Math.min(maxH, (vpW - 2 * pad) * cur.fullH / cur.fullW + 2 * pad)));
       vp.style.height = vpH + 'px';
     }
     const fit = Math.min(Math.max(1, vpW - 2 * pad) / cur.fullW, Math.max(1, vpH - 2 * pad) / cur.fullH);
@@ -2195,7 +2198,6 @@
   function select(id) {
     if (selId === id) return;
     selId = id;
-    if (id !== null && state.layout === 'free' && activeTab !== 'list') setTab('image');
     if (tool !== 'move') { tool = 'move'; updateToolUI(); } // Pinsel nicht versehentlich auf anderer Ebene
     if (ghost) render();
     updateFreeTools();
@@ -2297,9 +2299,9 @@
     if (on) {
       fsScrollY = window.scrollY;
       // Zurück-Taste (Android) beendet das Vollbild statt die Seite zu verlassen
-      try { history.pushState({ fotoMergeFs: true }, ''); } catch { /* egal */ }
-    } else if (!fromHistory && history.state?.fotoMergeFs) {
-      history.back(); // löst popstate aus, das dann hier ankommt
+      try { window.history.pushState({ fotoMergeFs: true }, ''); } catch { /* egal */ }
+    } else if (!fromHistory && window.history.state?.fotoMergeFs) {
+      window.history.back(); // löst popstate aus, das dann hier ankommt
       return;
     }
     els.previewPanel.classList.toggle('fs', on);
@@ -2429,7 +2431,7 @@
           navigator.vibrate?.(15);
           els.sel.classList.add('held');
           toast('Loslassen = bearbeiten', 1400);
-        }, 500);
+        }, 600);
         gest = fg;
         return;
       }
@@ -2580,7 +2582,14 @@
       g.vy = dcy / Math.max(1, now - (g.t || now - 16)); // px/ms für Schwung
       g.t = now;
     } else if (g.type === 'drag') {
-      if (g.held && !g.moved && Math.hypot(p.x - g.hx, p.y - g.hy) > 10) g.moved = true;
+      if (g.held && !g.moved && Math.hypot(p.x - g.hx, p.y - g.hy) > 10) {
+        g.moved = true;
+        if (images.length < 2 || view.z > 1.001) { // nichts zu tauschen → normal verschieben/scrollen
+          hideMarks();
+          g.type = view.z > 1.001 ? 'pan' : (g.touch && !els.previewPanel.classList.contains('fs') ? 'scroll' : 'none');
+          return;
+        }
+      }
       const t = hitIndex(e.clientX, e.clientY);
       g.target = t;
       showMarks(g.hit, t !== g.hit ? t : -1);
@@ -2667,7 +2676,10 @@
    * 3× schnell hintereinander auf ein Foto = Foto bearbeiten (Editor).
    */
   function handleTap(g, openEd = true) {
-    if (state.layout === 'free') select(g.hit >= 0 && images[g.hit] ? images[g.hit].id : null);
+    if (state.layout === 'free') {
+      select(g.hit >= 0 && images[g.hit] ? images[g.hit].id : null);
+      if (selId !== null && activeTab !== 'list') setTab('image'); // echtes Antippen → Werkzeuge fürs Foto zeigen
+    }
     const now = performance.now();
     const id = g.hit >= 0 ? images[g.hit]?.id : undefined;
     const near = lastTap && now - lastTap.t < 350 && Math.hypot(g.x0 - lastTap.x, g.y0 - lastTap.y) < 30 && lastTap.id === id;
@@ -2751,6 +2763,7 @@
   function openEditor(id) {
     const it = images.find((x) => x.id === id);
     if (!it || exporting || els.editor.open) return;
+    els.toast.classList.add('hidden');
     ed.it = it;
     ed.e = cloneEdit(it.edit);
     ed.aspect = ed.e.ak && (ed.e.ak === 'free' || ASPECTS[ed.e.ak]) && isCropped(ed.e.crop) ? ed.e.ak : (isCropped(ed.e.crop) ? 'free' : 'none');
@@ -3074,10 +3087,22 @@
     const b = e.target.closest('button[data-tab]');
     if (b) setTab(b.dataset.tab);
   });
+  els.tabs.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    const vis = [...els.tabs.querySelectorAll('button[data-tab]')].filter((b) => !b.classList.contains('hidden'));
+    const i = vis.findIndex((b) => b.dataset.tab === activeTab);
+    const nb = vis[(i + (e.key === 'ArrowRight' ? 1 : vis.length - 1)) % vis.length];
+    e.preventDefault();
+    setTab(nb.dataset.tab);
+    nb.focus();
+  });
+  for (const pn of document.querySelectorAll('.tabpane')) pn.setAttribute('role', 'tabpanel');
 
   // ---------- Kurzmeldung ----------
   let toastTimer = 0;
   function toast(msg, ms = 2200) {
+    const host = document.querySelector('dialog[open]') || document.body;
+    if (els.toast.parentNode !== host) host.append(els.toast);
     els.toast.textContent = msg;
     els.toast.classList.remove('hidden');
     clearTimeout(toastTimer);
@@ -3119,8 +3144,9 @@
   const favRemove = (id) => favTx('readwrite', (st) => st.delete(id));
   const canvasToBlob = (c, type, q) => new Promise((res) => c.toBlob(res, type, q));
 
+  let favUnavailable = false;
   async function refreshFavs() {
-    try { favCache = await favAll(); } catch { favCache = []; }
+    try { favCache = await favAll(); favUnavailable = false; } catch { favCache = []; favUnavailable = true; }
     els.favCount.textContent = String(favCache.length);
     els.favCount.classList.toggle('hidden', !favCache.length);
     if (els.favDlg.open) renderFavGrid();
@@ -3129,8 +3155,10 @@
   /** Foto mit Bearbeitung als fertiges Bild rendern (Originalauflösung des Ausschnitts). */
   async function renderFinished(it, e) {
     const d = dims(it, e);
-    const L = it.layer || {};
-    const alpha = !!e.angle || !!L.mask || L.feather > 0; // dann mit Transparenz (PNG)
+    // Maske/weiche Kante nur, wo sie auch sichtbar sind (Modus Frei/Ebenen) – gespeichert wird, was man sieht
+    const L = state.layout === 'free' ? (it.layer || {}) : {};
+    const maybeAlpha = /png|webp|gif|avif/.test(it.type || ''); // Quelle könnte transparent sein → am Inhalt prüfen
+    let alpha = !!e.angle || !!L.mask || L.feather > 0;
     let s = Math.min(1, 8192 / Math.max(d.w, d.h), Math.sqrt(40e6 / (d.w * d.h)));
     for (let tries = 0; tries < 6; tries++, s *= 0.75) {
       const W = Math.max(1, Math.round(d.w * s)), H = Math.max(1, Math.round(d.h * s));
@@ -3150,37 +3178,41 @@
         featherPass(ctx, W / 2, H / 2, W / 2, H / 2, 0, L.feather);
       }
       ctx.globalCompositeOperation = 'source-over';
-      const blob = await canvasToBlob(c, alpha ? 'image/png' : 'image/jpeg', 0.95);
+      const tc = thumbCanvas(c);
+      if (!alpha && maybeAlpha) {
+        const a = tc.getContext('2d').getImageData(0, 0, tc.width, tc.height).data;
+        for (let i = 3; i < a.length; i += 4) if (a[i] < 250) { alpha = true; break; }
+      }
+      // Mit Transparenz als WebP (deutlich kleiner als PNG), sonst JPEG
+      const blob = await canvasToBlob(c, alpha ? 'image/webp' : 'image/jpeg', 0.95);
+      const thumb = blob ? await canvasToBlob(tc, 'image/png') : null;
       c.width = c.height = 0;
-      if (blob) return { blob, w: W, h: H };
+      if (blob) return { blob, w: W, h: H, thumb };
     }
     throw new Error('render');
   }
 
-  async function makeFavThumb(blob) {
-    const img = new Image();
-    const u = URL.createObjectURL(blob);
-    try {
-      img.src = u;
-      await img.decode();
-      const S = 200, r = Math.min(1, S / Math.max(img.naturalWidth, img.naturalHeight));
-      const c = document.createElement('canvas');
-      c.width = Math.max(1, Math.round(img.naturalWidth * r));
-      c.height = Math.max(1, Math.round(img.naturalHeight * r));
-      const x = c.getContext('2d');
-      x.imageSmoothingQuality = 'high';
-      x.drawImage(img, 0, 0, c.width, c.height);
-      return await canvasToBlob(c, 'image/png');
-    } finally { URL.revokeObjectURL(u); }
+  /** Vorschaubild (max. 200 px) direkt aus der fertigen Canvas. */
+  function thumbCanvas(src) {
+    const S = 200, r = Math.min(1, S / Math.max(src.width, src.height));
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(src.width * r));
+    c.height = Math.max(1, Math.round(src.height * r));
+    const x = c.getContext('2d');
+    x.imageSmoothingQuality = 'high';
+    x.drawImage(src, 0, 0, c.width, c.height);
+    return c;
   }
 
   /** ★: Foto so, wie es gerade aussieht (bzw. mit der Bearbeitung e), dauerhaft als Favorit speichern. */
+  let favSaving = false;
   async function saveFavorite(it, e = it.edit) {
-    if (!it) return;
+    if (!it || favSaving) return;
+    favSaving = true;
     toast('Speichere Favorit …', 4000);
     try {
       const res = await renderFinished(it, e);
-      const thumb = await makeFavThumb(res.blob);
+      const thumb = res.thumb;
       const base = layerName(it).replace(/\.[a-z0-9]{2,5}$/i, '');
       const name = /Ausschnitt/.test(base) || !isCropped(e.crop) ? base : base + ' (Ausschnitt)';
       await favAdd({ name, blob: res.blob, thumb, w: res.w, h: res.h, created: Date.now() });
@@ -3189,11 +3221,13 @@
       toast(`★ „${name}“ als Favorit gespeichert`);
     } catch {
       toast('Favorit konnte nicht gespeichert werden (Speicher voll oder nicht verfügbar).', 3500);
+    } finally {
+      favSaving = false;
     }
   }
 
   async function insertFavorite(rec) {
-    const ext = rec.blob.type === 'image/png' ? 'png' : 'jpg';
+    const ext = { 'image/png': 'png', 'image/webp': 'webp' }[rec.blob.type] || 'jpg';
     await addFiles([new File([rec.blob], `${rec.name}.${ext}`, { type: rec.blob.type })]);
   }
 
@@ -3201,9 +3235,14 @@
     for (const u of favUrls) URL.revokeObjectURL(u);
     favUrls = [];
     els.favEmpty.classList.toggle('hidden', favCache.length > 0);
+    els.favEmpty.textContent = favUnavailable
+      ? 'Favoriten sind in diesem Browser-Modus nicht verfügbar (z. B. privates Fenster).'
+      : 'Noch keine Favoriten. Foto bearbeiten (z. B. Gesicht ausschneiden), dann ★ antippen – es bleibt hier gespeichert, auch nach dem Schließen der App.';
     els.favGrid.replaceChildren(...favCache.slice().reverse().map((rec) => {
       const tile = document.createElement('div');
       tile.className = 'fav';
+      tile.tabIndex = 0;
+      tile.setAttribute('role', 'button');
       tile.title = `${rec.name} – ${rec.w} × ${rec.h} px · antippen = einfügen`;
       const img = document.createElement('img');
       const u = URL.createObjectURL(rec.thumb || rec.blob);
@@ -3226,17 +3265,29 @@
         try { await favRemove(rec.id); } catch { /* egal */ }
         refreshFavs();
       });
-      tile.addEventListener('click', async () => {
+      const insert = async () => {
+        if (tile.dataset.busy) return; // nicht doppelt einfügen
+        tile.dataset.busy = '1';
         tile.classList.add('added');
         await insertFavorite(rec);
-        setTimeout(() => tile.classList.remove('added'), 900);
+        favInserted++;
+        els.favSub.textContent = `${favInserted} eingefügt · antippen = einfügen`;
+        setTimeout(() => { tile.classList.remove('added'); delete tile.dataset.busy; }, 900);
+      };
+      tile.addEventListener('click', insert);
+      tile.addEventListener('keydown', (ev) => {
+        if (ev.target === tile && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); insert(); }
       });
       tile.append(img, nm, del);
       return tile;
     }));
   }
 
+  let favInserted = 0;
+  els.favGrid.addEventListener('contextmenu', (e) => e.preventDefault()); // kein Android-Bildmenü beim Halten
   els.favBtn.addEventListener('click', async () => {
+    favInserted = 0;
+    els.favSub.textContent = 'Antippen = einfügen';
     await refreshFavs();
     renderFavGrid();
     if (!els.favDlg.open) els.favDlg.showModal();
@@ -3263,6 +3314,7 @@
     const wanted = fitScale(fullW, fullH, st.maxSize, st.format);
     exporting = true;
     els.downloadBtn.disabled = true;
+    els.quickSave.disabled = true;
     els.shareBtn.disabled = true;
     setInfo('Erzeuge Bild …');
     // Größte vom Browser tatsächlich unterstützte Größe suchen (wichtig für Handys).
@@ -3545,9 +3597,9 @@
 
   let keyCommitTimer = 0;
   window.addEventListener('keydown', (e) => {
-    if (els.editor.open) return;
+    if (els.editor.open || els.favDlg.open) return;
     if (e.key === 'Escape' && els.previewPanel.classList.contains('fs')) { toggleFullscreen(false); return; }
-    if (e.target.closest?.('input, select, textarea')) return;
+    if (e.target.closest?.('input, select, textarea, [role="tab"], .fav')) return;
     const it = state.layout === 'free' ? selItem() : null;
     if (it && it.free && !it.layer.locked && !gest && e.key.startsWith('Arrow') && !e.ctrlKey && !e.metaKey) {
       // Feinausrichtung: 1 Ausgabepixel (Umschalt: 10)

@@ -1,6 +1,6 @@
 // Offline-Unterstützung: App-Dateien werden beim Installieren zwischengespeichert.
 // Bei Änderungen an der App VERSION erhöhen, damit Handys die neue Fassung laden.
-const VERSION = 'foto-merge-v9';
+const VERSION = 'foto-merge-v10';
 const FILES = [
   './',
   './index.html',

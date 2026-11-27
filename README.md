@@ -39,9 +39,10 @@ oder über „Teilen / in Galerie speichern …“ direkt in Google Fotos, Whats
 ## Bedienung (ab v4.0 – kompakte App-Oberfläche)
 - **Leiste oben:** ＋ Fotos · ★ Favoriten · ↶ ↷ · ⬇ Speichern.
 - **Vorschau** bleibt am Handy oben stehen, darunter die **Reiter**:
-  **Anordnung** (Layout, Format, Best-Fit, Hintergrund) · **Bild** (ausgewähltes Foto im Modus Frei/Ebenen: Größe, Lage,
-  Überlagern, Maske) · **Fotos/Ebenen** (Liste, sortieren, ein-/ausblenden, sperren) · **Export** (Format, Qualität, Speichern, Teilen).
-  Tippst du im Modus Frei/Ebenen ein Foto an, springt der Reiter automatisch auf „Bild“.
+  **Anordnung** (Layout, Format, dicht anordnen, Hintergrund) · **Foto** (ausgewähltes Foto im Modus Frei/Ebenen: Größe, Lage,
+  Überlagern, Maske) · **Fotos/Ebenen** (Liste, sortieren, ein-/ausblenden, sperren) · **Speichern** (Format, Qualität, Teilen).
+  Tippst du im Modus Frei/Ebenen ein Foto an, springt der Reiter automatisch auf „Foto“. Im Vollbild bleibt die Leiste oben sichtbar;
+  die Zurück-Taste beendet das Vollbild.
 - **Foto bearbeiten:** Foto **gedrückt halten & loslassen** (kurzes Vibrieren), 3× tippen oder ✎.
   Gedrückt halten & ziehen tauscht (Collage) bzw. verschiebt (Frei) wie bisher.
 
@@ -49,6 +50,7 @@ oder über „Teilen / in Galerie speichern …“ direkt in Google Fotos, Whats
 - Foto bearbeiten (z. B. Gesicht ausschneiden), dann **★** antippen – im Editor („★ Favorit“), im Reiter „Bild“ oder in der Fotoliste.
 - Gespeichert wird das **fertige Ergebnis** (Ausschnitt, Drehung, Spiegelung, Begradigung; per Pinsel verborgene Teile als Transparenz)
   in Originalauflösung – **dauerhaft im Speicher des Browsers**, auch nach dem Schließen der App.
+  Undurchsichtige Fotos als JPEG, Fotos mit Transparenz (z. B. ausgeschnittenes Gesicht, Logo) als WebP mit Transparenz.
 - **★ Favoriten** oben öffnet die Sammlung: antippen = einfügen (mehrmals möglich), ✕ = löschen.
 - Hinweis: Löscht man im Browser die Website-Daten der App, sind auch die Favoriten weg.
 

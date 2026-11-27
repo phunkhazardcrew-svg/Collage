@@ -151,3 +151,17 @@
 - Tests: ui3.js (17: Halten→Editor in Collage & Frei, Halten+Ziehen, Favorit 1:1 = 800×800 JPEG, bleibt nach Neuladen, Einfügen,
   Löschen, Schnell-Speichern, Reiter, kein Überlauf bei 360/412 px); alle älteren Tests reiter-fähig gemacht (Helfer öffnet den
   passenden Reiter vor Klicks) – v2/free/sep/layers/fit2/big grün.
+
+## 2026-11-27 – v4.0.1 (Review-Fixes Oberfläche & Favoriten)
+- Agent-Review (Pixel 7, 360×640/560, 640×360, Desktop) – behoben: Vollbild nur teilbreit (`align-items: stretch`); Vollbild verdeckte
+  Leiste mit ↶/↷ (Vollbild beginnt jetzt unter der Leiste); Meldungen hinter offenen Dialogen (Toast wandert in den offenen Dialog);
+  transparente PNGs wurden schwarz (Transparenz wird am Inhalt erkannt → WebP, sonst JPEG); Tastenkürzel wirkten hinter dem
+  Favoriten-Dialog; Zurück-Taste beendete Vollbild nicht (alter Fehler: `history` war das Rückgängig-Array → `window.history`);
+  Querformat-Kleinhandys: Werkzeuge unerreichbar (Vorschau dort nicht klebend, Mindesthöhe ≤ 45 %); Halten+Ziehen mit nur
+  einem Foto/gezoomt blockierte Scrollen/Verschieben; doppeltes ★ speicherte doppelt; Favoriten-Kacheln per Tastatur; ★ speichert,
+  was man sieht (Maske nur im Modus Frei); Hinweis, wenn Browser-Speicher nicht verfügbar ist.
+- Verbesserungen: Reiter springt nur bei echtem Antippen auf „Foto“; Halten im Modus Frei 600 ms (langsames Tippen wählt nur aus);
+  klebende Reiter im Vollbild; Beschriftungen verständlicher (Foto, Speichern, Nebeneinander …, „Dicht anordnen“, „Lückenlos füllen“,
+  „An Foto darunter anpassen“, Name mit ✎); Vorschaubild direkt aus der Render-Canvas; „n eingefügt“ im Favoriten-Dialog;
+  Reiter per Pfeiltasten; ⬇ während des Exports gesperrt.
+- Tests: fixes4.js (11 gezielte Prüfungen), ui3/v2/free/sep/layers/fit2/big – alle grün.
