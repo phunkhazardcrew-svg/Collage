@@ -36,6 +36,22 @@ oder über „Teilen / in Galerie speichern …“ direkt in Google Fotos, Whats
 - Export: JPEG / PNG (verlustfrei) / WebP; „Original“ = volle Auflösung.
 - Alles läuft lokal im Browser, nichts wird hochgeladen.
 
+## Bedienung (ab v4.0 – kompakte App-Oberfläche)
+- **Leiste oben:** ＋ Fotos · ★ Favoriten · ↶ ↷ · ⬇ Speichern.
+- **Vorschau** bleibt am Handy oben stehen, darunter die **Reiter**:
+  **Anordnung** (Layout, Format, Best-Fit, Hintergrund) · **Bild** (ausgewähltes Foto im Modus Frei/Ebenen: Größe, Lage,
+  Überlagern, Maske) · **Fotos/Ebenen** (Liste, sortieren, ein-/ausblenden, sperren) · **Export** (Format, Qualität, Speichern, Teilen).
+  Tippst du im Modus Frei/Ebenen ein Foto an, springt der Reiter automatisch auf „Bild“.
+- **Foto bearbeiten:** Foto **gedrückt halten & loslassen** (kurzes Vibrieren), 3× tippen oder ✎.
+  Gedrückt halten & ziehen tauscht (Collage) bzw. verschiebt (Frei) wie bisher.
+
+## Favoriten (ab v4.0)
+- Foto bearbeiten (z. B. Gesicht ausschneiden), dann **★** antippen – im Editor („★ Favorit“), im Reiter „Bild“ oder in der Fotoliste.
+- Gespeichert wird das **fertige Ergebnis** (Ausschnitt, Drehung, Spiegelung, Begradigung; per Pinsel verborgene Teile als Transparenz)
+  in Originalauflösung – **dauerhaft im Speicher des Browsers**, auch nach dem Schließen der App.
+- **★ Favoriten** oben öffnet die Sammlung: antippen = einfügen (mehrmals möglich), ✕ = löschen.
+- Hinweis: Löscht man im Browser die Website-Daten der App, sind auch die Favoriten weg.
+
 ## Best-Fit & Format (ab v3.1, Modus „Frei / Ebenen“)
 - **Format:** Frei (so eng wie möglich), 1:1, 4:5, 5:4, 2:3, 3:2, 3:4, 4:3, 9:16, 16:9, 21:9. Passt die Anordnung nicht
   exakt, wird mit schmalem Hintergrund (schwarz) aufgefüllt – es wird nie etwas abgeschnitten.

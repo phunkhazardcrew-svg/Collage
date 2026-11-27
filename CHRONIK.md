@@ -135,3 +135,19 @@
 - Tests fit2.js (15): Größen bleiben 100 %, keine Überlappung, Formate exakt, Vergrößern/Verkleinern eines Fotos ändert nur dieses,
   Ziehen ordnet ein, Best-Fit jetzt, Lückenlos = 100 %, danach bleiben Größen fest; packRects n=20 < 1 ms.
   fit.js prüft noch das alte (verworfene) lückenlose Auto-Verhalten – nur noch die Tipp-Tests darin sind gültig.
+
+## 2026-11-27 – v4.0 (Kompakte Oberfläche, Gedrückt halten, Favoriten)
+- Nutzer: kompakter & logisch gruppiert, Bild per Gedrückt-halten bearbeiten, Favoriten für bearbeitete Fotos (dauerhaft).
+  Rückfragen: App-Stil mit Reitern · Favorit = fertig bearbeitetes Foto (z. B. ausgeschnittenes Gesicht) · Halten+Loslassen = Editor ·
+  gespeichert wird das fertige Ergebnis.
+- Oberfläche: Leiste oben (＋ Fotos = #drop, ★ Favoriten + Zähler, ↶ ↷, ⬇ Speichern), `<main id="previewPanel">` mit klebender
+  Vorschau (.stage, am Handy oben stehend, 42 % Höhe) und Reitern Anordnung | Bild | Fotos/Ebenen | Export (`setTab`, gemerkt).
+  Bild-Reiter gruppiert: Kopf (Name = umbenennen, ✎ ★ ⧉ 🗑 ✕) · Größe & Lage · Überlagern · Maske. Vollbild = ganzes main.
+  Alle Element-IDs beibehalten → Logik unverändert. Dreh-Griff klappt unter das Foto, wenn oben kein Platz ist.
+- Gedrückt halten: Collage 450 ms → loslassen = Editor, ziehen = tauschen (auch Maus); Frei 500 ms → loslassen = Editor, ziehen = verschieben.
+- Favoriten: IndexedDB 'fotoMergeFavorites'/'favs'; `renderFinished()` (Editor-Bearbeitung + Maske/weiche Kante → PNG, sonst JPEG 95 %,
+  Originalauflösung, max. 8192 px/40 MP), Vorschaubild 200 px; Dialog #favDlg (antippen = einfügen über addFiles, ✕ = löschen);
+  `navigator.storage.persist()`. Kurzmeldungen über `toast()`.
+- Tests: ui3.js (17: Halten→Editor in Collage & Frei, Halten+Ziehen, Favorit 1:1 = 800×800 JPEG, bleibt nach Neuladen, Einfügen,
+  Löschen, Schnell-Speichern, Reiter, kein Überlauf bei 360/412 px); alle älteren Tests reiter-fähig gemacht (Helfer öffnet den
+  passenden Reiter vor Klicks) – v2/free/sep/layers/fit2/big grün.
